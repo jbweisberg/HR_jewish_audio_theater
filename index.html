@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- STRICT HESHY BRANDING -->
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
+    <meta name="description" content="Official home of Jewish Audio Theater. Timeless stories brought to life by Heshy Riesel.">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
@@ -12,7 +15,7 @@
         theme: {
           extend: {
             colors: {
-              theater: { midnight: '#050A14', parchment: '#F5F2E8', burgundy: '#4A0E0E', gold: '#D4AF37', alert: '#8B0000' }
+              theater: { midnight: '#050A14', parchment: '#F5F2E8', burgundy: '#4A0E0E', gold: '#D4AF37', danger: '#E63946' }
             },
             fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }
           }
@@ -22,20 +25,12 @@
     <style>
       body { background-color: #050A14; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
       html { scroll-behavior: smooth; }
-      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
       
-      /* HIGH-INTENSITY RED ALERT VISUAL */
-      .final-minute-visual {
-        background-color: #8B0000 !important;
-        animation: pulse-red 1.5s infinite;
-      }
-      @keyframes pulse-red {
-        0% { opacity: 1; }
-        50% { opacity: 0.8; }
-        100% { opacity: 1; }
-      }
-      .countdown-fill { animation: shrink 10s linear forwards; }
-      @keyframes shrink { from { width: 100%; } to { width: 0%; } }
+      /* FINAL MINUTE VISUAL: DEEP BURGUNDY FLASH */
+      .parent-alert-active { background-color: #631212 !important; animation: final-minute-alert 1s infinite alternate; }
+      @keyframes final-minute-alert { from { background-color: #4A0E0E; } to { background-color: #8B0000; } }
+      
+      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
     </style>
   </head>
   <body>
