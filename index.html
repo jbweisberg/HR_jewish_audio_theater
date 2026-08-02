@@ -3,22 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    
-    <!-- BRANDING CORRECTED: Heshy / Timeless Stories -->
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
-    <meta name="description" content="Timeless stories brought to life by master storyteller Heshy Riesel. The definitive home for immersive Jewish audio drama.">
-    
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebPage",
-      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".voice-title", ".voice-desc"] },
-      "url": "https://jewishaudiotheater.com"
-    }
-    </script>
-
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,90To reach the **G-D MOVE LEVEL**, the code needs a "Brain" that specifically understands **Series Order** (Oldest to Newest) and a **Countdown Timer** that the user can actually see.
+
+The "1-minute")[0]?.getAttribute("href") || xml.querySelector("image url")?.textContent || "",
+          date: new Date(item.querySelector("pubDate")?.textContent || "").toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
+        }));
+        
+        setEpisodes(items);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(items));
+        setLoading(false);
+      } catch (e) {
+        setLoading(false);
+      }
+    }
+    loadTheater();
+  }, []);
+
+  const togglePlay = (ep?: any) => {
+    if (!audioRef.current) return;
+    setStoryComplete(false);
+    setWarned(false);
+    
+    // Series Logic: Stefan Part 1 is at Index 1, Stefan Part 2 is at Index 0
+    if (ep && ep.id0;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
@@ -33,14 +42,46 @@
     </script>
     <style>
       body { background-color: #050A14; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
-      html { scroll-behavior: smooth; }
+      html { alert" often fails because the browser hasn't calculated the "Duration" of the file yet. I have updated the logic to wait until the audio is fully loaded before trying to set the alert.
+
+### Step 1: The Authority Shell (`index.html && (!activeEp || ep.id !== activeEp.id)) {
+      setActiveEp(ep);
+      setIsPlaying(true);
+      audioRef.current.src = ep.url;
+      audioRef.current.load();
+      audioRef.current.play().catch(e => console.log("User interaction required"));
+    } else if (activeEp) {
+      isPlaying ? audioRef.current.pause() : audioRef.current.play();
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    if (!activeEp) return;
+    const currentIndex = episodes.findIndex(e => e.id === activeEp. scroll-behavior: smooth; }
       input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
-      .animate-glow { animation: gold-glow 2s infinite; }
-      @keyframes gold-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    </style>
+      .animate-pulse-slow { animation: pulse 3s cubic-bezier(0`)
+I added a specific "Pulse" animation for the 1-minute warning so it's impossible to miss.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-.4, 0, 0.6, 1) infinite; }
+      @keyframes pulse { 8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1id);
+    
+    // CHRONOLOGICAL FLOW: Moves Part 1 (Higher Index) to Part 2 (0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style.0, maximum-scale=1.0, user-scalable=no" />
+    <title>JewishLower Index)
+    if (currentIndex > 0) {
+      const next = episodes[currentIndex - 1];>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type=" Audio Theater | Timeless Stories Brought to Life</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <module" src="/src/main.tsx"></script>
   </body>
 </html>
