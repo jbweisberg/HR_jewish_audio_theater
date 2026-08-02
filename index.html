@@ -4,10 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     
-    <!-- FIXED TAB TITLE & BRANDING -->
+    <!-- BRANDING CORRECTED: Heshy / Timeless Stories -->
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
-    <meta name="description" content="Official home of Jewish Audio Theater. Timeless stories brought to life by master storyteller Heshy Riesel.">
+    <meta name="description" content="Timeless stories brought to life by master storyteller Heshy Riesel. The definitive home for immersive Jewish audio drama.">
     
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".voice-title", ".voice-desc"] },
+      "url": "https://jewishaudiotheater.com"
+    }
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script>
@@ -26,6 +35,8 @@
       body { background-color: #050A14; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
       html { scroll-behavior: smooth; }
       input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
+      .animate-glow { animation: gold-glow 2s infinite; }
+      @keyframes gold-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
   </head>
   <body>
