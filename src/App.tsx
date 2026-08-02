@@ -6,7 +6,7 @@ import {
 
 const RSS_URL = "https://feed.podbean.com/handyhesh/feed.xml";
 const CHIME_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
-const CACHE_KEY = "jat_catalog_v_final";
+const CACHE_KEY = "jat_master_cache_v4";
 
 export default function App() {
   const [episodes, setEpisodes] = useState<any[]>([]);
@@ -30,7 +30,6 @@ export default function App() {
     return `${min}:${sec < 10 ? '0' + sec : sec}`;
   };
 
-  // FETCH & CACHE ENGINE
   useEffect(() => {
     async function loadTheater() {
       const cached = sessionStorage.getItem(CACHE_KEY);
@@ -42,8 +41,6 @@ export default function App() {
       try {
         const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(RSS_URL)}`);
         const data = await res.json();
-        
-        // --- THIS IS WHERE YOUR SNIPPET LIVES ---
         const xml = new DOMParser().parseFromString(data.contents, "text/xml");
         const items = Array.from(xml.querySelectorAll("item")).map((item, i) => ({
           id: item.querySelector("guid")?.textContent || String(i),
@@ -64,7 +61,7 @@ export default function App() {
     loadTheater();
   }, []);
 
-  // CONTINUITY COUNTDOWN ENGINE
+  // Countdown Logic
   useEffect(() => {
     let timer: any;
     if (storyComplete && nextEp && countdown > 0) {
@@ -96,19 +93,32 @@ export default function App() {
   const handleEnded = () => {
     setIsPlaying(false);
     if (!activeEp) return;
+    
     const currentIndex = episodes.findIndex(e => e.id === activeEp.id);
     
-    // Series Logic: Move Part 1 (High Index) -> Part 2 (Lower Index)
+    // SERIES FLOW: Find if there's a newer part (Index - 1)
+    // Most feeds go Part 2 (Index 0), Part 1 (Index 1)
     if (currentIndex > 0) {
-      const next = episodes[currentIndex - 1];
-      setNextEp(next);
-      setStoryComplete(true);
+      const currentTitlePrefix = activeEp.title.split('Part')[0].trim();
+      const possibleNext = episodes[currentIndex - 1];
+      
+      // If the next title contains the same prefix, it's a series match
+      if (possibleNext.title.includes(currentTitlePrefix)) {
+        setNextEp(possibleNext);
+        setStoryComplete(true);
+      } else {
+        showRecs();
+      }
     } else {
-      const randomRecs = [...episodes].filter(e => e.id !== activeEp.id).sort(() => 0.5 - Math.random()).slice(0, 3);
-      setRecs(randomRecs);
-      setNextEp(null);
-      setStoryComplete(true);
+      showRecs();
     }
+  };
+
+  const showRecs = () => {
+    const randomRecs = [...episodes].filter(e => e.id !== activeEp.id).sort(() => 0.5 - Math.random()).slice(0, 3);
+    setRecs(randomRecs);
+    setNextEp(null);
+    setStoryComplete(true);
   };
 
   const handleTimeUpdate = () => {
@@ -117,12 +127,12 @@ export default function App() {
     const dur = audioRef.current.duration;
     setCurrentTime(current);
 
-    // PARENTAL ALERT: Exactly 60 seconds left
+    // PARENT CHIME: Exactly at 60 seconds
     if (dur > 65 && (dur - current <= 60.5 && dur - current >= 59.5) && !warned) {
       setWarned(true);
       const chime = new Audio(CHIME_URL);
-      chime.volume = 0.4;
-      chime.play().catch(e => console.log("Chime interaction needed"));
+      chime.volume = 0.5;
+      chime.play().catch(() => {});
     }
   };
 
@@ -138,50 +148,47 @@ export default function App() {
     <div className="min-h-screen bg-[#050A14] text-[#F5F2E8] font-sans w-full overflow-x-hidden">
       <audio ref={audioRef} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)} onEnded={handleEnded} preload="auto" />
 
-      {/* G-D MOVE CURTAIN CALL */}
+      {/* CURTAIN CALL */}
       {storyComplete && (
-        <div className="fixed inset-0 z-[200] bg-[#050A14]/98 flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-700">
-          <div className="max-w-4xl w-full bg-[#F5F2E8] p-8 md:p-12 text-center border-t-8 border-[#D4AF37] shadow-2xl overflow-y-auto max-h-[90vh]">
-            <CheckCircle2 size={48} className="text-[#4A0E0E] mx-auto mb-6" />
-            <h2 className="text-[#050A14] font-serif text-3xl md:text-5xl uppercase mb-2 italic font-black leading-none">The Curtain Falls</h2>
+        <div className="fixed inset-0 z-[200] bg-[#050A14]/98 flex items-center justify-center p-4 md:p-8">
+          <div className="max-w-4xl w-full bg-[#F5F2E8] p-8 md:p-12 text-center border-t-8 border-[#D4AF37] shadow-2xl">
+            <CheckCircle2 size={48} className="text-[#4A0E0E] mx-auto mb-4" />
+            <h2 className="text-[#050A14] font-serif text-3xl md:text-5xl uppercase mb-2 italic font-black">The Curtain Falls</h2>
             
             {nextEp ? (
               <div className="mt-8">
-                <p className="text-[12px] uppercase font-black tracking-[0.3em] text-[#4A0E0E] mb-2">Next Part starting in {countdown} seconds...</p>
-                <p className="text-[#050A14] font-serif text-2xl italic mb-8 font-black leading-tight">{nextEp.title}</p>
-                <div className="w-48 h-2 bg-[#050A14]/10 mx-auto rounded-full overflow-hidden">
-                   <div className="h-full bg-[#D4AF37] transition-all duration-1000" style={{ width: `${(countdown / 10) * 100}%` }}></div>
+                <p className="text-[12px] uppercase font-black text-[#4A0E0E] mb-2 tracking-widest">Next Chapter starting in {countdown} seconds...</p>
+                <p className="text-[#050A14] font-serif text-2xl md:text-4xl italic mb-10 font-black">{nextEp.title}</p>
+                <div className="w-64 h-2 bg-[#050A14]/10 mx-auto rounded-full overflow-hidden">
+                   <div className="h-full bg-[#D4AF37] countdown-bar"></div>
                 </div>
               </div>
             ) : (
-              <div className="mt-12">
-                <p className="text-[#050A14] font-serif text-xl italic mb-8">Series Concluded. <br/>Start a different tale from the Vault:</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {recs.map(r => (
-                    <div key={r.id} onClick={() => togglePlay(r)} className="cursor-pointer group bg-white p-4 shadow-sm border border-black/5 text-left">
-                      <img src={r.image} className="w-full aspect-square object-cover mb-4 group-hover:scale-105 transition" alt="" />
-                      <p className="text-[#050A14] font-serif text-sm uppercase leading-tight italic font-black">{r.title}</p>
-                    </div>
-                  ))}
-                </div>
+              <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+                {recs.map(r => (
+                  <div key={r.id} onClick={() => togglePlay(r)} className="cursor-pointer group bg-white p-4 border border-black/5 text-left">
+                    <img src={r.image} className="w-full aspect-square object-cover mb-4 group-hover:scale-105 transition" />
+                    <p className="text-[#050A14] font-serif text-sm italic font-black leading-tight">{r.title}</p>
+                  </div>
+                ))}
               </div>
             )}
-            <button onClick={() => setStoryComplete(false)} className="mt-12 text-[10px] font-black uppercase tracking-widest text-[#050A14]/40 hover:text-[#4A0E0E]">Return to Theater</button>
+            <button onClick={() => setStoryComplete(false)} className="mt-12 text-[10px] font-black uppercase text-[#050A14]/40 hover:text-[#4A0E0E]">Return to Theater</button>
           </div>
         </div>
       )}
 
-      {/* NAV - LEVELED */}
+      {/* NAV */}
       <nav className="fixed top-0 w-full z-50 bg-[#050A14]/95 backdrop-blur-lg border-b border-[#D4AF37]/10 px-6 py-5 md:py-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center h-full">
           <div className="flex flex-col text-left justify-center">
             <h1 className="font-serif text-xl md:text-3xl text-[#D4AF37] uppercase leading-none italic">Jewish Audio Theater</h1>
-            <p className="text-[8px] md:text-[10px] uppercase tracking-[0.4em] text-[#F5F2E8]/40 font-black mt-1 leading-none">Timeless Stories Brought to Life</p>
+            <p className="text-[8px] md:text-[10px] uppercase tracking-[0.4em] text-[#F5F2E8]/40 font-black mt-1">Timeless Stories Brought to Life</p>
           </div>
           <div className="hidden md:flex items-center gap-10 text-[10px] font-black uppercase tracking-widest h-full">
-            <a href="#vault" className="hover:text-[#D4AF37] transition pt-1">Vault</a>
-            <a href="#casting" className="hover:text-[#D4AF37] transition pt-1">Audition</a>
-            <a href="#signup" className="bg-[#D4AF37] text-black px-6 py-2 transition hover:bg-white shadow-lg font-black tracking-tighter"><Bell size={12} className="inline mr-2" /> Alerts</a>
+            <a href="#vault" className="hover:text-[#D4AF37] transition">Vault</a>
+            <a href="#casting" className="hover:text-[#D4AF37] transition">Audition</a>
+            <a href="#signup" className="bg-[#D4AF37] text-black px-6 py-2 transition hover:bg-white shadow-lg font-bold">Alerts</a>
           </div>
           <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-[#D4AF37]"><Menu size={28} /></button>
         </div>
@@ -193,11 +200,11 @@ export default function App() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#4A0E0E66_0%,_transparent_70%)] opacity-40"></div>
           <div className="max-w-7xl mx-auto w-full grid md:grid-cols-12 gap-10 md:gap-20 relative z-10">
             <div className="md:col-span-7 flex flex-col justify-center">
-              <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[100px] font-serif leading-[0.9] mb-8 uppercase tracking-tighter italic">{episodes[0].title}</h2>
+              <h2 className="text-4xl sm:text-6xl md:text-8xl lg:text-[100px] font-serif leading-[0.9] mb-8 uppercase tracking-tighter italic font-black">{episodes[0].title}</h2>
               <p className="text-lg md:text-2xl font-light opacity-80 mb-10 max-w-xl italic border-l-2 border-[#D4AF37]/30 pl-6 text-white">"Timeless Stories Brought to Life"</p>
               <button onClick={() => togglePlay(episodes[0])} className="w-fit bg-[#D4AF37] text-black px-12 py-6 font-black uppercase text-sm hover:bg-[#F5F2E8] transition shadow-2xl flex items-center gap-4">
                 {activeEp && activeEp.id === episodes[0].id && isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
-                Enter Theater
+                {activeEp && activeEp.id === episodes[0].id && isPlaying ? "Pause Story" : "Enter Theater"}
               </button>
             </div>
             <div className="hidden md:block md:col-span-5 self-center">
@@ -220,31 +227,32 @@ export default function App() {
                     <Play size={32} className="text-[#D4AF37]" />
                   </div>
                 </div>
-                <h4 className="text-2xl md:text-4xl font-serif uppercase leading-tight group-hover:text-[#4A0E0E] transition italic tracking-tighter font-black">{ep.title}</h4>
+                <h4 className="text-2xl md:text-4xl font-serif uppercase leading-tight group-hover:text-[#4A0E0E] transition italic tracking-tighter font-black text-[#050A14]">{ep.title}</h4>
+                <p className="mt-4 text-[9px] font-black uppercase text-[#4A0E0E] tracking-widest italic opacity-50">By Heshy Riesel</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* FOOTER */}
+      {/* CONTACT */}
       <footer id="contact" className="py-24 md:py-40 px-6 bg-[#050A14] text-center border-t border-[#D4AF37]/10">
-        <h2 className="text-3xl md:text-7xl font-serif uppercase tracking-tighter mb-8 text-[#D4AF37] italic leading-none">Contact</h2>
-        <a href="mailto:Maggid@jewishaudiotheater.com" className="text-lg md:text-4xl font-black uppercase tracking-tighter hover:text-white transition break-words italic leading-none">Maggid@jewishaudiotheater.com</a>
+        <h2 className="text-3xl md:text-7xl font-serif uppercase tracking-tighter mb-8 text-[#D4AF37] italic">Contact</h2>
+        <a href="mailto:Maggid@jewishaudiotheater.com" className="text-lg md:text-4xl font-black uppercase tracking-tighter hover:text-white transition break-words italic">Maggid@jewishaudiotheater.com</a>
         <div className="mt-16 flex justify-center gap-10 text-[#D4AF37]/30">
           <Globe size={24} /> <Music size={24} /> <Share2 size={24} />
         </div>
-        <p className="mt-16 text-[8px] md:text-[10px] uppercase tracking-[0.4em] opacity-20 font-bold italic leading-none">© 2024 Heshy Riesel • Authority Productions</p>
+        <p className="mt-16 text-[8px] md:text-[10px] uppercase tracking-[0.4em] opacity-20 font-bold italic leading-none">© 2024 Heshy Riesel • Timeless Stories</p>
       </footer>
 
       {/* PLAYER BAR */}
       {activeEp && (
-        <div className={`fixed bottom-0 left-0 right-0 border-t-2 border-[#D4AF37] px-4 md:px-8 py-6 md:py-10 z-[100] shadow-2xl transition-all duration-1000 ${isFinalMinute ? 'bg-[#4A0E0E]' : 'bg-[#0A0F1B]'}`}>
+        <div className={`fixed bottom-0 left-0 right-0 border-t-2 border-[#D4AF37] px-4 md:px-8 py-6 md:py-10 z-[100] shadow-2xl transition-all duration-1000 ${isFinalMinute ? 'final-minute-warning' : 'bg-[#0A0F1B]'}`}>
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-6 md:gap-12">
             
             {isFinalMinute && (
-              <div className="w-full flex items-center justify-center gap-2 text-[#D4AF37] font-black uppercase text-[10px] tracking-widest animate-glow mb-2">
-                <AlertCircle size={14} /> One Minute Remaining
+              <div className="w-full flex items-center justify-center gap-2 text-[#D4AF37] font-black uppercase text-[10px] tracking-[0.3em] mb-1">
+                <AlertCircle size={14} className="animate-bounce" /> 1 Minute Remaining
               </div>
             )}
 
@@ -258,11 +266,11 @@ export default function App() {
               <div className="flex items-center gap-4 text-left truncate">
                 <img src={activeEp.image} className="w-12 h-12 md:w-20 md:h-20 object-cover border border-[#D4AF37]/20 shadow-lg" alt="" />
                 <div className="truncate">
-                  <h5 className="text-sm md:text-2xl font-serif text-[#D4AF37] uppercase italic truncate leading-none mb-1">{activeEp.title}</h5>
-                  <p className="text-[9px] uppercase tracking-[0.4em] font-black opacity-30 italic">Heshy Riesel • Timeless Stories</p>
+                  <h5 className="text-sm md:text-2xl font-serif text-[#D4AF37] uppercase italic truncate tracking-tighter leading-none mb-1 font-black">{activeEp.title}</h5>
+                  <p className="text-[9px] uppercase tracking-[0.4em] font-black opacity-30 italic leading-none">Heshy Riesel • Timeless Stories</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 md:gap-10">
+              <div className="flex items-center gap-4">
                 <button onClick={() => togglePlay()} className="w-12 h-12 md:w-20 md:h-20 bg-[#D4AF37] rounded-full flex items-center justify-center text-black shadow-2xl hover:scale-110 active:scale-95 transition">
                   {isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}
                 </button>
