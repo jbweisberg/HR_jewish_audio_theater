@@ -3,10 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    
-    <!-- STRICT BRANDING -->
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
-    <meta name="description" content="Timeless stories brought to life by master storyteller Heshy Riesel.">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
@@ -15,7 +12,7 @@
         theme: {
           extend: {
             colors: {
-              theater: { midnight: '#050A14', parchment: '#F5F2E8', burgundy: '#4A0E0E', gold: '#D4AF37' }
+              theater: { midnight: '#050A14', parchment: '#F5F2E8', burgundy: '#4A0E0E', gold: '#D4AF37', alert: '#8B0000' }
             },
             fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }
           }
@@ -27,12 +24,18 @@
       html { scroll-behavior: smooth; }
       input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
       
-      /* THE FINAL MINUTE PULSE */
-      .final-minute-warning { animation: emergency-pulse 2s infinite; }
-      @keyframes emergency-pulse { 0% { background-color: #4A0E0E; } 50% { background-color: #8B0000; } 100% { background-color: #4A0E0E; } }
-      
-      .countdown-bar { animation: countdown-fill 10s linear forwards; }
-      @keyframes countdown-fill { from { width: 100%; } to { width: 0%; } }
+      /* HIGH-INTENSITY RED ALERT VISUAL */
+      .final-minute-visual {
+        background-color: #8B0000 !important;
+        animation: pulse-red 1.5s infinite;
+      }
+      @keyframes pulse-red {
+        0% { opacity: 1; }
+        50% { opacity: 0.8; }
+        100% { opacity: 1; }
+      }
+      .countdown-fill { animation: shrink 10s linear forwards; }
+      @keyframes shrink { from { width: 100%; } to { width: 0%; } }
     </style>
   </head>
   <body>
