@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Jewish Audio Theater | Heshey Riesel Official Site</title>
+    <meta name="description" content="Immersive Jewish stories and historical adventures brought to life by master storyteller Heshey Riesel.">
+    
+    <!-- VOICE SEARCH OPTIMIZATION (Speakable Schema) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".voice-title", ".voice-desc"] },
+      "url": "https://jewishaudiotheater.com"
+    }
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              theater: { midnight: '#050A14', parchment: '#F5F2E8', burgundy: '#4A0E0E', gold: '#D4AF37' }
+            },
+            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }
+          }
+        }
+      }
+    </script>
+    <style>
+      body { background-color: #050A14; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
+      html { scroll-behavior: smooth; }
+      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
