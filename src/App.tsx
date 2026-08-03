@@ -229,4 +229,54 @@ export default function App() {
             {episodes.length > 1 && episodes.slice(1).map((ep) => (
               <div key={ep.id} className="group cursor-pointer flex flex-col" onClick={() => togglePlay(ep)}>
                 <div className="relative aspect-square overflow-hidden bg-black mb-8 shadow-2xl">
-                  <img src={ep.image} loading="lazy" className="w-full h-full object-cover opacity-85 group-hover:scale-110 transition duration-1000" alt=
+                  <img src={ep.image} loading="lazy" className="w-full h-full object-cover opacity-85 group-hover:scale-110 transition duration-1000" alt="" />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-500 bg-black/40"><Play size={64} fill="#D4AF37" className="text-theater-gold" /></div>
+                </div>
+                <h4 className="text-3xl md:text-4xl font-serif uppercase italic font-black leading-tight tracking-tighter">{ep.title}</h4>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer className="py-48 bg-theater-midnight text-center z-10 relative">
+        <h2 className="text-3xl md:text-8xl font-serif uppercase tracking-tighter mb-10 text-theater-gold italic font-black">Contact Heshy</h2>
+        <a href="mailto:Maggid@jewishaudiotheater.com" className="text-xl md:text-5xl font-black uppercase tracking-tighter hover:text-white transition italic block leading-none px-6">Maggid@jewishaudiotheater.com</a>
+        <div className="mt-16 flex justify-center gap-10 text-theater-gold/20">
+          <Globe size={32} /> <Music size={32} /> <Share2 size={32} />
+        </div>
+      </footer>
+
+      {/* PLAYER: HIGH PERSISTENCE - UNAFFECTED BY THEATER DIMMER OR CONTENT CLUTTER */}
+      {activeEp && (
+        <div className={`fixed bottom-0 left-0 right-0 border-t-2 border-theater-gold/50 px-6 md:px-12 py-10 md:py-16 z-[2000] shadow-[0_-30px_100px_#000] transition-all duration-700 ${isFinalMinute ? 'bg-[#7B0000]' : 'bg-[#02040A]'}`}>
+          <div className="max-w-7xl mx-auto">
+            {isFinalMinute && <div className="text-center text-white font-black uppercase text-[12px] tracking-[0.5em] mb-4 animate-bounce">Parent Alert: Finishing in 60s</div>}
+            <div className="flex items-center gap-10 mb-8">
+              <span className="text-[12px] font-black text-theater-gold w-14 text-left font-mono">{formatTime(currentTime)}</span>
+              <input type="range" min="0" max={duration || 0} value={currentTime} onChange={(e) => { if(audioRef.current) audioRef.current.currentTime = Number(e.target.value); }} className="flex-1 h-2 bg-white/10 appearance-none accent-theater-gold cursor-pointer" />
+              <span className="text-[12px] font-black text-white/50 w-14 text-right font-mono">-{formatTime(duration - currentTime)}</span>
+            </div>
+            <div className="w-full flex items-center justify-between gap-10">
+              <div className="flex items-center gap-6 text-left truncate flex-1">
+                <img src={activeEp.image} className="w-16 h-16 md:w-28 md:h-28 object-cover border-2 border-white/20" />
+                <div className="truncate">
+                  <h5 className="text-xl md:text-5xl font-serif text-theater-gold uppercase italic truncate leading-none mb-1 font-black">{activeEp.title}</h5>
+                  <p className="text-[10px] uppercase font-black text-white/30 italic mt-3 tracking-widest leading-none">Heshy Riesel Authority Archive</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 md:gap-10">
+                <button onClick={() => setIsDimmed(!isDimmed)} className={`p-4 rounded-full transition-all border ${isDimmed ? 'bg-theater-gold text-black border-theater-gold shadow-[0_0_30px_#D4AF3744]' : 'bg-transparent text-white/20 border-white/10'}`}>
+                  <Lamp size={28}/>
+                </button>
+                <button onClick={() => togglePlay()} className="w-16 h-16 md:w-28 md:h-28 bg-theater-gold rounded-full flex items-center justify-center text-black shadow-2xl hover:scale-105 active:scale-90 transition-all duration-300 transform -rotate-1">
+                  {isPlaying ? <Pause size={48} /> : <Play size={48} className="ml-1" fill="black" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
