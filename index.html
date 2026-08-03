@@ -21,10 +21,14 @@
     <style>
       body { background-color: #050A14; color: #F5F2E8; margin: 0; overflow-x: hidden; }
       html { scroll-behavior: smooth; }
-      .final-minute-warning { background-color: #8B0000 !important; animation: red-alert 1.5s infinite alternate; }
-      @keyframes red-alert { from { opacity: 1; } to { opacity: 0.8; } }
-      .continuity-bar-fill { animation: fill-shrink 10s linear forwards; }
-      @keyframes fill-shrink { from { width: 100%; } to { width: 0%; } }
+      
+      /* THE ULTIMATE PARENTAL ALERT */
+      .red-alert-active { background-color: #7B0000 !important; transition: background-color 1s ease; }
+      
+      /* YouTube Style Progress bar for countdown */
+      .timer-bar { height: 100%; background: #D4AF37; animation: countdown-anim 10s linear forwards; }
+      @keyframes countdown-anim { from { width: 100%; } to { width: 0%; } }
+
       input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
     </style>
   </head>
