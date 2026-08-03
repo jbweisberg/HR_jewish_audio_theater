@@ -19,12 +19,29 @@
       }
     </script>
     <style>
-      body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; -webkit-tap-highlight-color: transparent; }
+      body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
       html { scroll-behavior: smooth; }
-      .is-bedtime #stage-root { filter: brightness(0.15) blur(10px); transition: all 1.5s ease-in-out; pointer-events: none; }
-      .portal-bg { background: radial-gradient(circle at 50% 50%, #2a0202 0%, #02040A 100%); }
-      .jat-insignia { background: linear-gradient(to bottom, #D4AF37, #FFF, #D4AF37); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)); }
-      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #D4AF37; border-radius: 50%; cursor: pointer; border: 2px solid #000; }
+      
+      /* Bedtime Mode: Applies only to content background */
+      .is-bedtime #stage-root { filter: brightness(0.2) blur(8px); transition: all 1.5s ease-in-out; pointer-events: none; }
+      
+      .portal-gradient {
+        background: radial-gradient(circle at 50% 50%, #250202 0%, #02040A 100%);
+        box-shadow: inset 0 0 150px rgba(0,0,0,1);
+      }
+
+      /* Logo Size Corrected: Clamp prevents it from growing too big for the screen */
+      .jat-logo {
+        font-family: 'Pinyon Script', cursive;
+        font-size: clamp(80px, 15vw, 160px);
+        background: linear-gradient(to bottom, #D4AF37, #FFF, #D4AF37);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 0.8;
+      }
+
+      .progress-shimmer { height: 100%; background: #D4AF37; animation: countdown-anim 10s linear forwards; }
+      @keyframes countdown-anim { from { width: 100%; } to { width: 0%; } }
     </style>
   </head>
   <body>
