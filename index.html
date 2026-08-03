@@ -20,10 +20,11 @@
     </script>
     <style>
       body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; }
+      html { scroll-behavior: smooth; }
+      .stage-bedtime { filter: brightness(0.2) blur(8px); transition: filter 1.5s ease-in-out; pointer-events: none; }
+      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; border-radius: 50%; border: 2px solid #02040A; cursor: pointer; }
       .premium-shimmer { background: linear-gradient(90deg, #D4AF37 0%, #F5F2E8 50%, #D4AF37 100%); background-size: 200% auto; animation: shimmer 3s linear infinite; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
       @keyframes shimmer { to { background-position: 200% center; } }
-      .input-theater { background: rgba(255,255,255,0.05); border: 1px solid rgba(212,175,55,0.2); padding: 12px; color: white; width: 100%; transition: border 0.3s; }
-      .input-theater:focus { border-color: #D4AF37; outline: none; background: rgba(255,255,255,0.08); }
     </style>
   </head>
   <body>
