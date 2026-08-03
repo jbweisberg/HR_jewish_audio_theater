@@ -21,10 +21,10 @@
     <style>
       body { background-color: #050A14; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
       html { scroll-behavior: smooth; }
-      .alert-red-visual { background-color: #8B0000 !important; animation: alert-flash 1s infinite alternate; }
-      @keyframes alert-flash { from { opacity: 1; } to { opacity: 0.8; } }
-      .countdown-timer-bar { animation: drain 10s linear forwards; }
-      @keyframes drain { from { width: 100%; } to { width: 0%; } }
+      .alert-red { background-color: #8B0000 !important; animation: red-flash 1s infinite alternate; }
+      @keyframes red-flash { from { opacity: 1; } to { opacity: 0.8; } }
+      .transition-progress { animation: count-drain 5s linear forwards; }
+      @keyframes count-drain { from { width: 100%; } to { width: 0%; } }
       input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; cursor: pointer; border-radius: 50%; border: 2px solid #050A14; }
     </style>
   </head>
