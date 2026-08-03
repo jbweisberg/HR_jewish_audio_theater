@@ -5,26 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&family=Pinyon+Script&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', gold: '#D4AF37' }
+              theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', velvet: '#630606', gold: '#D4AF37' }
             },
-            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }
+            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'], ornate: ['Pinyon Script', 'cursive'] }
           }
         }
       }
     </script>
     <style>
       body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; }
-      html { scroll-behavior: smooth; }
-      .stage-bedtime { filter: brightness(0.2) blur(8px); transition: filter 1.5s ease-in-out; pointer-events: none; }
-      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; border-radius: 50%; border: 2px solid #02040A; cursor: pointer; }
-      .premium-shimmer { background: linear-gradient(90deg, #D4AF37 0%, #F5F2E8 50%, #D4AF37 100%); background-size: 200% auto; animation: shimmer 3s linear infinite; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+      .ornate-border { border: 12px solid; border-image: linear-gradient(to bottom, #D4AF37, #B8860B, #D4AF37) 1; position: relative; }
+      .ornate-border::before { content: ''; position: absolute; inset: -4px; border: 1px solid #D4AF37; pointer-events: none; }
+      
+      .portal-gate {
+        background: radial-gradient(circle at 50% 50%, #1a0202 0%, #02040A 100%);
+        border: 2px solid rgba(212,175,55,0.3);
+        box-shadow: 0 0 100px rgba(212,175,55,0.1);
+      }
+
+      .insignia-shimmer {
+        background: linear-gradient(90deg, #D4AF37, #FFF, #D4AF37);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 4s linear infinite;
+      }
       @keyframes shimmer { to { background-position: 200% center; } }
+      
+      .dimmed-view { filter: brightness(0.2) blur(10px); pointer-events: none; transition: all 1.5s ease; }
+      .timer-shrink { height: 100%; background: #D4AF37; animation: countdown-bar 10s linear forwards; }
+      @keyframes countdown-bar { from { width: 100%; } to { width: 0%; } }
+      
+      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #D4AF37; border-radius: 50%; border: 3px solid #000; cursor: pointer; }
     </style>
   </head>
   <body>
