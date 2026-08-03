@@ -19,37 +19,31 @@
       }
     </script>
     <style>
-      body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; -webkit-tap-highlight-color: transparent; }
+      /* Clean Slate Base */
+      body { background-color: #02040A; color: #F5F2E8; margin: 0; padding: 0; overflow-x: hidden; width: 100%; font-family: 'Inter', sans-serif; }
       html { scroll-behavior: smooth; }
 
-      /* THE VEIL: This is the dimmer. It sits at Z-1500 */
-      #bedtime-veil {
-        position: fixed; inset: 0; background: black; opacity: 0; 
-        pointer-events: none; transition: opacity 1.2s ease-in-out; z-index: 1500;
-      }
-      .is-dimmed #bedtime-veil { opacity: 0.9; }
-      .is-dimmed #stage-content { filter: blur(5px); transition: filter 1.2s; }
-
-      /* LOGO BOX: Extra padding and height to prevent script clipping */
-      .insignia-box {
-        min-height: 260px; display: flex; align-items: center; justify-content: center;
-        overflow: visible; width: 100%;
-      }
-      .jat-insignia-text {
+      /* Bedtime Mode: Applies only to Stage Root content */
+      .is-bedtime #stage-content { filter: brightness(0.2) blur(10px); transition: all 1.2s ease; pointer-events: none; }
+      
+      /* REFINED INSIGNIA: Fixed clipping by defining vertical space (leading) and padding */
+      .jat-insignia-stage {
         font-family: 'Pinyon Script', cursive;
-        font-size: clamp(120px, 25vw, 260px);
-        background: linear-gradient(to bottom, #D4AF37 0%, #FFF 50%, #D4AF37 100%);
+        font-size: clamp(100px, 20vw, 240px);
+        background: linear-gradient(to bottom, #D4AF37 0%, #FFF 40%, #B8860B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 15px 30px rgba(0,0,0,0.8));
-        padding: 60px 0;
-        line-height: 1.8;
+        filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
+        line-height: 1.5; /* Essential to prevent vertical clipping */
+        padding: 60px 20px; /* Room for script flourishes */
+        display: block;
+        text-align: center;
       }
 
-      .progress-burn { height: 100%; background: #D4AF37; animation: countdown-burn 10s linear forwards; }
-      @keyframes countdown-burn { from { width: 100%; } to { width: 0%; } }
+      .continuity-bar { height: 100%; background: #D4AF37; animation: countdown-bar 10s linear forwards; }
+      @keyframes countdown-bar { from { width: 100%; } to { width: 0%; } }
 
-      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: #D4AF37; border-radius: 50%; cursor: pointer; border: 3px solid #000; }
+      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #D4AF37; border-radius: 50%; border: 2px solid #000; cursor: pointer; }
     </style>
   </head>
   <body>
