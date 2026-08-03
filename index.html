@@ -21,9 +21,11 @@
     <style>
       body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; }
       html { scroll-behavior: smooth; }
-      /* Dimmer Filter: Applied to background layers only */
-      .night-dim { filter: brightness(0.2) contrast(1.1) blur(4px); pointer-events: none; transition: all 1s ease; }
-      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #D4AF37; border-radius: 50%; border: 2px solid #000; }
+      /* Dimmer Logic: Only blurs and darkens the STAGE layer */
+      .is-dimmed #stage-content { filter: brightness(0.15) blur(10px); transition: all 1.5s ease-in-out; pointer-events: none; }
+      .timer-bar-anim { height: 100%; background: #D4AF37; animation: countdown-bar 10s linear forwards; }
+      @keyframes countdown-bar { from { width: 100%; } to { width: 0%; } }
+      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: #D4AF37; border-radius: 50%; border: 2px solid #000; cursor: pointer; }
     </style>
   </head>
   <body>
