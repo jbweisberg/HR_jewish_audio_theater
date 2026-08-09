@@ -3,17 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    
-    <!-- BRANDING -->
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
-    <meta name="description" content="Timeless stories brought to life by Heshy Riesel. Experience Jewish Audio Theater.">
-    
-    <!-- TAILWIND ENGINE -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- THEATER FONTS: Includes Pinyon Script for the Logo -->
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Inter:wght@400;700;900&family=Pinyon+Script&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@400;700;900&family=Pinyon+Script&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
@@ -21,39 +13,32 @@
             colors: {
               theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', gold: '#D4AF37' }
             },
-            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'], ornate: ['Pinyon Script', 'cursive'] }
+            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }
           }
         }
       }
     </script>
-    
     <style>
-      /* CORE LAYOUT */
       body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; -webkit-tap-highlight-color: transparent; }
       html { scroll-behavior: smooth; }
       
-      /* BEDTIME DIMMER: Only dims the background stage, not the player! */
-      .is-bedtime #stage-content { filter: brightness(0.2) blur(8px); transition: all 1.5s ease-in-out; pointer-events: none; }
+      /* The Bedtime Dimmer Veil */
+      .stage-dimmed { filter: brightness(0.2) blur(10px); transition: all 1.5s ease-in-out; pointer-events: none; }
       
-      /* PORTAL LOGO FIX: Prevents the top and bottom of the J & T from clipping */
+      /* Insignia styling with extra vertical buffer for the Pinyon flourishes */
       .jat-portal-insignia {
         font-family: 'Pinyon Script', cursive;
-        font-size: clamp(100px, 20vw, 220px);
-        background: linear-gradient(to bottom, #D4AF37, #FFF, #D4AF37);
+        font-size: clamp(100px, 20vw, 240px);
+        background: linear-gradient(to bottom, #D4AF37 0%, #FFF 40%, #B8860B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        line-height: 1.2;
-        padding: 30px;
-        overflow: visible;
+        line-height: 1.5;
+        padding: 40px 10px;
         display: block;
-        filter: drop-shadow(0 15px 30px rgba(0,0,0,0.8));
+        text-align: center;
+        filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
       }
 
-      /* 10-SECOND CONTINUITY BAR ANIMATION */
-      .progress-strip { height: 100%; background: #D4AF37; animation: countdown-anim 10s linear forwards; }
-      @keyframes countdown-anim { from { width: 100%; } to { width: 0%; } }
-
-      /* GOLD CUSTOM AUDIO SLIDER */
       input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #D4AF37; border-radius: 50%; cursor: pointer; border: 2px solid #000; }
     </style>
   </head>
