@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@400;700;900&family=Pinyon+Script&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Inter:wght@400;700;900&family=Pinyon+Script&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
@@ -13,7 +13,7 @@
             colors: {
               theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', gold: '#D4AF37' }
             },
-            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'] }
+            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'], ornate: ['Pinyon Script', 'cursive'] }
           }
         }
       }
@@ -22,10 +22,8 @@
       body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; -webkit-tap-highlight-color: transparent; }
       html { scroll-behavior: smooth; }
       
-      /* The Bedtime Dimmer Veil */
-      .stage-dimmed { filter: brightness(0.2) blur(10px); transition: all 1.5s ease-in-out; pointer-events: none; }
+      .is-bedtime #stage-root { filter: brightness(0.2) blur(8px); transition: all 1.5s ease-in-out; pointer-events: none; }
       
-      /* Insignia styling with extra vertical buffer for the Pinyon flourishes */
       .jat-portal-insignia {
         font-family: 'Pinyon Script', cursive;
         font-size: clamp(100px, 20vw, 240px);
