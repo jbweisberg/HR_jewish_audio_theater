@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Play, Pause, X, Library, CheckCircle2, Menu, Globe, Music, 
-  Share2, AlertCircle, Headphones, ArrowRight, Lamp, Loader2, PlayCircle, FastForward, Sparkles, Lock, Star, Mic2
+  Share2, AlertCircle, Headphones, ArrowRight, Lamp, Loader2, PlayCircle, FastForward, Sparkles, Lock, Star, Mic2, Mic
 } from 'lucide-react';
 
 const RSS_URL = "https://feed.podbean.com/handyhesh/feed.xml";
 const CHIME_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
-const CACHE_KEY = "jat_master_v1";
+const CACHE_KEY = "jat_master_logic_v_VOICE_SYNC";
 
 export default function App() {
   const [episodes, setEpisodes] = useState<any[]>([]);
@@ -29,7 +29,6 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatTime = (time: number) => {
-    if (isNaN(time)) return "0:00";
     const min = Math.floor(time / 60);
     const sec = Math.floor(time % 60);
     return `${min}:${sec < 10 ? '0' + sec : sec}`;
@@ -76,13 +75,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!showNextOverlay || !isSeriesLink) return;
-    if (countdown > 0) {
-      const timerId = setTimeout(() => setCountdown(c => c - 1), 1000);
-      return () => clearTimeout(timerId);
-    } else {
+    let timer: any;
+    if (showNextOverlay && isSeriesLink && countdown > 0) {
+      timer = setInterval(() => setCountdown(c => c - 1), 1000);
+    } else if (showNextOverlay && isSeriesLink && countdown === 0) {
       handleAutoTransition();
     }
+    return () => clearInterval(timer);
   }, [showNextOverlay, countdown, isSeriesLink]);
 
   const handleAutoTransition = () => {
@@ -103,10 +102,10 @@ export default function App() {
       setIsPlaying(true);
       audioRef.current.src = ep.url;
       audioRef.current.load();
-      audioRef.current.play().catch(() => setIsPlaying(false));
+      audioRef.current.play();
       setCurrentMode('theater');
     } else if (activeEp) {
-      isPlaying ? audioRef.current.pause() : audioRef.current.play().catch(() => {});
+      isPlaying ? audioRef.current.pause() : audioRef.current.play();
       setIsPlaying(!isPlaying);
     }
   };
@@ -115,14 +114,16 @@ export default function App() {
     if (!audioRef.current) return;
     const cur = audioRef.current.currentTime;
     const dur = audioRef.current.duration;
-    if (!dur || isNaN(dur)) return;
+    if (!dur) return;
     setCurrentTime(cur);
 
+    // Transition Intercept
     if (!showNextOverlay && (dur - cur <= 15) && (dur - cur > 1)) {
       generateSequenceMap();
     }
 
-    if (!showNextOverlay && dur > 65 && (dur - cur <= 60.5 && dur - cur >= 59.5) && !warned) {
+    // Parent Chime
+    if (!showNextOverlay && dur > 70 && (dur - cur <= 60.5 && dur - cur >= 59.5) && !warned) {
       setWarned(true);
       new Audio(CHIME_URL).play().catch(() => {});
     }
@@ -130,20 +131,15 @@ export default function App() {
 
   const generateSequenceMap = () => {
     const idx = episodes.findIndex(e => e.id === activeEp.id);
-    
-    const cleanTitle = (title: string) => {
-      return title.toLowerCase().replace(/\b(part|pt|chapter|episode)\s*\d+\b/gi, '').replace(/[^\w\s]/gi, '').trim();
-    };
-    
-    const rootName = cleanTitle(activeEp.title);
+    const cleanRoot = (title: string) => title.toLowerCase().replace(/\b(part|pt|chapter|episode)\s*\d+\b/gi, '').replace(/[-:|]/g, '').trim();
+    const rootName = cleanRoot(activeEp.title);
     let pathOptions: any[] = [];
     let linkSuccess = false;
 
     if (idx > 0) {
       const newerPart = episodes[idx - 1];
-      const newerRoot = cleanTitle(newerPart.title);
-      
-      if (newerRoot === rootName || (rootName.length > 3 && newerRoot.includes(rootName))) {
+      const newerRoot = cleanRoot(newerPart.title);
+      if (newerRoot === rootName || (rootName.length > 5 && newerRoot.includes(rootName))) {
         pathOptions.push(newerPart);
         linkSuccess = true;
       }
@@ -159,45 +155,44 @@ export default function App() {
 
   if (loading && episodes.length === 0) return <div className="h-screen bg-[#02040A] flex items-center justify-center text-[#D4AF37]"><Loader2 className="animate-spin" size={48}/></div>;
 
-  const isFinalMinute = duration > 65 && (duration - currentTime <= 60) && (duration - currentTime > 0) && !showNextOverlay;
+  if (currentMode === 'gate') {
+    return (
+      <div className="fixed inset-0 z-[8000] bg-[#02040A] flex flex-col items-center justify-center p-8 text-center animate-in zoom-in duration-1000 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#2a0202_0%,_#02040A_100%)] opacity-80 pointer-events-none"></div>
+        <h1 className="jat-portal-insignia select-none relative z-10">JAT</h1>
+        <p className="font-serif text-3xl md:text-5xl font-black uppercase italic tracking-[0.2em] mb-12 relative z-10 text-[#F5F2E8]">Enter the Portal</p>
+        <button 
+          onClick={() => { setCurrentMode('theater'); window.scrollTo(0,0); }}
+          className="relative z-10 bg-[#D4AF37] text-black px-16 py-8 font-black uppercase tracking-[0.2em] text-sm md:text-lg hover:bg-white transition shadow-[0_0_100px_#D4AF3744] active:scale-95"
+        >Open the Theater</button>
+        <div className="mt-20 opacity-30 text-[9px] font-black uppercase tracking-[0.6em] relative z-10">TIMELESS STORIES • HESHY RIESEL</div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen bg-[#02040A] text-[#F5F2E8] font-sans selection:bg-[#D4AF37] overflow-x-hidden ${isDimmed ? 'is-bedtime' : ''}`}>
       <audio ref={audioRef} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)} onEnded={() => setIsPlaying(false)} preload="auto" />
 
-      {/* MOBILE MENU */}
+      {/* MOBILE MENU OVERLAY */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[9999] bg-[#02040A]/98 backdrop-blur-xl flex flex-col items-center justify-center gap-12 animate-in fade-in">
+        <div className="fixed inset-0 z-[9000] bg-[#02040A]/98 backdrop-blur-xl flex flex-col items-center justify-center gap-12 animate-in fade-in">
            <button onClick={() => setIsMenuOpen(false)} className="absolute top-8 right-8 text-[#D4AF37] p-2"><X size={40}/></button>
            <a href="#repertory" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">The Repertory</a>
+           <a href="#voice" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">Smart Speakers</a>
            <a href="#casting" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">Audition</a>
-           <a href="mailto:Maggid@jewishaudiotheater.com" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">Contact Heshy</a>
-        </div>
-      )}
-
-      {/* PORTAL ENTRANCE */}
-      {currentMode === 'gate' && (
-        <div className="fixed inset-0 z-[8000] bg-[#02040A] flex flex-col items-center justify-center p-8 text-center animate-in zoom-in duration-1000 overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#2a0202_0%,_#02040A_100%)] opacity-80 pointer-events-none"></div>
-          <h1 className="jat-portal-insignia select-none relative z-10">JAT</h1>
-          <p className="font-serif text-3xl md:text-5xl font-black uppercase italic tracking-[0.2em] mb-12 relative z-10 text-[#F5F2E8]">Enter the Portal</p>
-          <button 
-            onClick={() => { setCurrentMode('theater'); window.scrollTo(0,0); }}
-            className="relative z-10 bg-[#D4AF37] text-black px-16 py-8 font-black uppercase tracking-[0.2em] text-sm md:text-lg hover:bg-white transition shadow-[0_0_100px_#D4AF3744] active:scale-95"
-          >Open the Theater</button>
-          <div className="mt-20 opacity-30 text-[9px] font-black uppercase tracking-[0.6em] relative z-10">TIMELESS STORIES • HESHY RIESEL</div>
         </div>
       )}
 
       {/* CONTINUITY OVERLAY */}
       {showNextOverlay && (
         <div className="fixed inset-0 z-[5000] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-10 animate-in slide-in-from-bottom duration-700 overflow-y-auto">
-           <div className="max-w-5xl w-full bg-[#F5F2E8] text-[#02040A] p-6 md:p-14 shadow-2xl border-t-[10px] border-[#D4AF37] relative my-auto">
+           <div className="max-w-5xl w-full bg-[#F5F2E8] text-[#02040A] p-8 md:p-14 shadow-2xl border-t-[10px] border-[#D4AF37] relative my-auto">
               <div className="text-center mb-10">
                  <h2 className="text-4xl md:text-7xl font-serif italic font-black uppercase tracking-tighter">
                    {isSeriesLink ? "The Story Continues" : "Pick Your Path Next"}
                  </h2>
-                 <p className="text-[10px] uppercase font-black tracking-[0.5em] mt-4 opacity-40">
+                 <p className="text-[10px] uppercase font-black tracking-[0.4em] opacity-40 mt-4">
                    {isSeriesLink ? "The next chapter is loading" : "Discover a new adventure from the repertory"}
                  </p>
               </div>
@@ -214,13 +209,13 @@ export default function App() {
                    </div>
                  ))}
               </div>
-              <button onClick={() => setShowNextOverlay(false)} className="mt-14 uppercase font-black text-[11px] opacity-20 hover:opacity-100 transition tracking-[1em] block w-full text-center py-4">Audio is playing in background... dismiss choice</button>
+              <button onClick={() => setShowNextOverlay(false)} className="mt-14 uppercase font-black text-[11px] opacity-20 hover:opacity-100 transition tracking-[1em] block w-full text-center py-4">Audio is playing... dismiss choice</button>
            </div>
         </div>
       )}
 
       {/* STAGE ROOT */}
-      <div id="stage-root">
+      <div id="stage-content">
         <nav className="fixed top-0 w-full z-[100] h-20 md:h-24 bg-[#02040A]/60 backdrop-blur-xl border-b border-white/5 flex items-center px-6 md:px-12">
           <div className="max-w-7xl mx-auto w-full flex justify-between items-center h-full">
             <div className="flex flex-col text-left">
@@ -229,15 +224,16 @@ export default function App() {
             </div>
             <div className="hidden md:flex items-center gap-12 text-[10px] font-black uppercase h-full pt-1">
                <a href="#repertory" className="text-[#D4AF37] hover:text-white transition tracking-widest uppercase">The Repertory</a>
-               <button className="flex items-center gap-2 text-white/20 border border-white/10 px-6 py-2 tracking-widest opacity-20 cursor-not-allowed"> <Lock size={12}/> Entry Locked </button>
-               <a href="mailto:Maggid@jewishaudiotheater.com" className="border-l border-white/10 pl-10 text-white font-black hover:text-[#D4AF37] uppercase tracking-[0.1em] transition">Heshy Riesel • THE MAGGID</a>
+               <a href="#voice" className="text-[#D4AF37] hover:text-white transition tracking-widest uppercase">Smart Speakers</a>
+               <a href="mailto:Maggid@jewishaudiotheater.com" className="border-l border-white/10 pl-10 text-white font-black hover:text-[#D4AF37] transition leading-none">Heshy Riesel • THE MAGGID</a>
             </div>
             <button onClick={() => setIsMenuOpen(true)} className="md:hidden text-[#D4AF37] pt-1 p-2"><Menu size={32}/></button>
           </div>
         </nav>
 
+        {/* HERO */}
         {episodes.length > 0 && (
-          <header className="relative min-h-screen flex items-center pt-24 px-6 md:px-8 text-left z-10 overflow-hidden mb-20 md:mb-32">
+          <header className="relative min-h-screen flex items-center pt-24 px-6 md:px-8 text-left z-10 overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#4A0E0E77_0%,_transparent_75%)] opacity-40 pointer-events-none"></div>
             <div className="max-w-7xl mx-auto w-full grid md:grid-cols-12 gap-10 md:gap-24 relative z-10 items-center">
               <div className="md:col-span-7 flex flex-col justify-center">
@@ -253,17 +249,45 @@ export default function App() {
           </header>
         )}
 
+        {/* SMART SPEAKER INSTRUCTIONS */}
+        <section id="voice" className="py-24 md:py-40 px-6 md:px-12 bg-[#02040A] text-center border-t border-white/5 relative z-10">
+          <div className="max-w-5xl mx-auto">
+            <Mic className="mx-auto text-[#D4AF37] mb-8 opacity-40" size={64} />
+            <h2 id="voice-command-title" className="text-4xl md:text-7xl font-serif uppercase tracking-tighter mb-8 italic text-[#D4AF37]">Smart Speaker Playback</h2>
+            <p id="voice-command-desc" className="text-lg md:text-2xl font-light opacity-70 mb-16 italic text-[#F5F2E8]">
+              To ensure Alexa and Google properly find the theater, use these exact commands:
+            </p>
+            <div className="grid md:grid-cols-2 gap-8 text-left">
+              <div className="bg-white/5 border border-[#D4AF37]/20 p-8 shadow-xl">
+                 <h4 className="font-serif text-2xl text-[#D4AF37] mb-4 font-black italic">For Amazon Alexa:</h4>
+                 <p className="text-white opacity-80 font-mono text-sm leading-relaxed tracking-wider">
+                   "Alexa, play the podcast Jewish Audio Theater."
+                 </p>
+                 <p className="mt-4 text-[9px] uppercase tracking-widest text-[#D4AF37] opacity-60 font-black">You must say the word 'Podcast'</p>
+              </div>
+              <div className="bg-white/5 border border-[#D4AF37]/20 p-8 shadow-xl">
+                 <h4 className="font-serif text-2xl text-[#D4AF37] mb-4 font-black italic">For Google Home:</h4>
+                 <p className="text-white opacity-80 font-mono text-sm leading-relaxed tracking-wider">
+                   "Hey Google, play the podcast Jewish Audio Theater by Heshy Riesel."
+                 </p>
+                 <p className="mt-4 text-[9px] uppercase tracking-widest text-[#D4AF37] opacity-60 font-black">Include 'Heshy Riesel'</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* REPERTORY */}
         <section id="repertory" className="bg-[#F5F2E8] text-[#02040A] py-32 px-10 border-y-[20px] border-[#02040A] shadow-inner relative z-10">
            <div className="max-w-7xl mx-auto text-left">
-              <h3 className="text-6xl md:text-[150px] font-serif uppercase tracking-tighter mb-20 italic font-black border-b-[8px] border-black/5 pb-12 leading-none text-center">REPERTORY</h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-16 md:gap-x-12 md:gap-y-40 text-left">
+              <h3 className="text-6xl md:text-[150px] font-serif uppercase tracking-tighter mb-24 italic font-black border-b-[8px] border-black/5 pb-12 leading-none text-center">REPERTORY</h3>
+              <div className="grid md:grid-cols-3 gap-16 md:gap-x-12 md:gap-y-40 text-left">
                 {episodes.length > 1 && episodes.slice(1).map(ep => (
                    <div key={ep.id} className="cursor-pointer group flex flex-col" onClick={() => togglePlay(ep)}>
                       <div className="relative aspect-square overflow-hidden mb-10 shadow-2xl bg-[#000] border-4 border-white transition-all group-hover:border-[#D4AF37]">
                         <img src={ep.image} loading="lazy" className="w-full h-full object-cover opacity-85 group-hover:scale-110 transition duration-1000" alt="" />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/40"><PlayCircle size={80} className="text-[#D4AF37]" fill="#000" /></div>
                       </div>
-                      <h4 className="text-2xl md:text-4xl font-serif font-black italic uppercase leading-none tracking-tighter">{ep.title}</h4>
+                      <h4 className="text-2xl md:text-5xl font-serif font-black italic uppercase leading-none tracking-tighter">{ep.title}</h4>
                       <p className="mt-4 text-[11px] font-black uppercase text-[#4A0E0E] opacity-40 italic tracking-widest leading-none">THE MAGGID PRODUCTION</p>
                    </div>
                 ))}
@@ -271,7 +295,8 @@ export default function App() {
            </div>
         </section>
 
-        <section id="casting" className="py-24 md:py-40 px-6 md:px-12 bg-[#02040A] border-y border-[#D4AF37]/10 relative overflow-hidden">
+        {/* CASTING SECTION */}
+        <section id="casting" className="py-32 px-8 bg-[#02040A] border-y border-[#D4AF37]/10 relative overflow-hidden">
           <div className="max-w-7xl mx-auto relative z-10 grid lg:grid-cols-2 gap-20 items-center">
             <div>
               <div className="h-16 w-16 bg-[#D4AF37] text-black flex items-center justify-center mb-10 shadow-xl rounded-full">
@@ -297,6 +322,7 @@ export default function App() {
           </div>
         </section>
 
+        {/* FOOTER */}
         <footer id="contact" className="py-32 md:py-48 px-6 bg-[#02040A] text-center">
           <Headphones className="mx-auto text-[#D4AF37] mb-12 opacity-30" size={48} />
           <h2 className="text-4xl md:text-8xl font-serif uppercase tracking-tighter mb-10 text-[#D4AF37] italic font-black">Contact the Maggid</h2>
@@ -310,9 +336,9 @@ export default function App() {
 
       {/* MASTER PLAYER BAR */}
       {activeEp && (
-        <div className={`fixed bottom-0 left-0 right-0 border-t-2 border-[#D4AF37]/50 px-4 md:px-12 py-8 md:py-16 z-[3000] shadow-[0_-30px_150px_#000] transition-colors duration-1000 ${isFinalMinute ? 'bg-[#7B0000]' : 'bg-[#090D17]'}`}>
+        <div className={`fixed bottom-0 left-0 right-0 border-t-2 border-[#D4AF37]/50 px-4 md:px-12 py-8 md:py-16 z-[3000] shadow-[0_-30px_150px_#000] transition-colors duration-1000 ${duration - currentTime <= 60 && !showNextOverlay ? 'bg-[#7B0000]' : 'bg-[#090D17]'}`}>
           <div className="max-w-7xl mx-auto text-left">
-            {isFinalMinute && <div className="text-center text-white font-black uppercase text-[10px] md:text-[12px] tracking-[0.5em] mb-4 animate-bounce">1 Minute Alert • Finish in {Math.floor(duration - currentTime)}s</div>}
+            {duration - currentTime <= 60 && !showNextOverlay && <div className="text-center text-white font-black uppercase text-[10px] md:text-[12px] tracking-[0.5em] mb-4 animate-bounce">1 Minute Alert • Finish in {Math.floor(duration - currentTime)}s</div>}
             
             <div className="flex items-center gap-6 md:gap-10 mb-6 md:mb-8">
               <span className="text-[10px] md:text-[12px] font-black text-[#D4AF37] w-12 md:w-14 font-mono text-left">{formatTime(currentTime)}</span>
@@ -321,7 +347,7 @@ export default function App() {
             </div>
             
             <div className="w-full flex justify-between gap-6 md:gap-10 items-center">
-              <div className="flex items-center gap-4 md:gap-8 text-left truncate flex-1 cursor-pointer" onClick={() => { setCurrentMode('theater'); window.scrollTo(0,0); }}>
+              <div className="flex items-center gap-4 md:gap-8 text-left truncate flex-1 cursor-pointer" onClick={() => window.scrollTo({top:0, behavior:'smooth'})}>
                 <img src={activeEp.image} className="w-14 h-14 md:w-28 md:h-28 object-cover border border-white/20 shadow-xl" alt="" />
                 <div className="truncate pr-4">
                   <h5 className="text-lg md:text-5xl font-serif text-[#D4AF37] uppercase italic truncate leading-none mb-1 md:mb-2 font-black tracking-tighter">{activeEp.title}</h5>
