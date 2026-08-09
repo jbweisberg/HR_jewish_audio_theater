@@ -11,7 +11,7 @@
         theme: {
           extend: {
             colors: {
-              theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', gold: '#D4AF37' }
+              theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', velvet: '#630606', gold: '#D4AF37' }
             },
             fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'], ornate: ['Pinyon Script', 'cursive'] }
           }
@@ -19,25 +19,22 @@
       }
     </script>
     <style>
-      /* Clean Slate Base */
-      body { background-color: #02040A; color: #F5F2E8; margin: 0; padding: 0; overflow-x: hidden; width: 100%; font-family: 'Inter', sans-serif; }
+      body { background-color: #02040A; color: #F5F2E8; margin: 0; padding: 0; overflow-x: hidden; width: 100%; -webkit-tap-highlight-color: transparent; }
       html { scroll-behavior: smooth; }
 
-      /* Bedtime Mode: Applies only to Stage Root content */
-      .is-bedtime #stage-content { filter: brightness(0.2) blur(10px); transition: all 1.2s ease; pointer-events: none; }
+      .is-bedtime #stage-content { filter: brightness(0.2) blur(12px); transition: all 1.5s ease; pointer-events: none; }
       
-      /* REFINED INSIGNIA: Fixed clipping by defining vertical space (leading) and padding */
-      .jat-insignia-stage {
+      .jat-portal-insignia {
         font-family: 'Pinyon Script', cursive;
         font-size: clamp(100px, 20vw, 240px);
         background: linear-gradient(to bottom, #D4AF37 0%, #FFF 40%, #B8860B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
-        line-height: 1.5; /* Essential to prevent vertical clipping */
-        padding: 60px 20px; /* Room for script flourishes */
+        line-height: 1.8; /* Preventing letter clipping */
+        padding: 20px 20px;
         display: block;
         text-align: center;
+        filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
       }
 
       .continuity-bar { height: 100%; background: #D4AF37; animation: countdown-bar 10s linear forwards; }
