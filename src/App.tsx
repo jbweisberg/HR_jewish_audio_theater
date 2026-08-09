@@ -314,7 +314,7 @@ export default function App() {
           <div className="mt-20 flex justify-center gap-12 text-[#D4AF37]/20">
             <Globe size={28} /> <Music size={28} /> <Share2 size={28} />
           </div>
-          <p className="mt-24 text-[9px] uppercase tracking-[0.6em] opacity-30 font-black italic tracking-widest leading-none">© 2024 Heshy Riesel • AUTHORITY PRODUCTION ARCHIVE</p>
+          <p className="mt-24 text-[9px] uppercase tracking-[0.6em] opacity-30 font-black italic tracking-widest leading-none">© 2026 Heshy Riesel • AUTHORITY PRODUCTION ARCHIVE</p>
 
           {/* ADVANCED AEO MATRIX FOR AI/SEARCH ENGINES */}
           <article className="sr-only vso-target">
