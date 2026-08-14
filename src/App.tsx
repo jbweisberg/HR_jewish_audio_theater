@@ -883,9 +883,9 @@ export default function App() {
               <div className="bedtime-handoff-panel">
                 <button className="bedtime-handoff-close" onClick={dismissBedtimeHandoff} aria-label="Keep listening without choices"><X size={18} /></button>
                 <div className="bedtime-handoff-copy">
-                  <span className="bedtime-kicker">The story is almost over</span>
-                  <h2>{upNext ? 'If they’re still awake…' : 'Still awake?'}</h2>
-                  <p>Choose what should come next if they are still awake. While this story is still playing, your choice is queued and waits for a natural ending.</p>
+                  <span className="bedtime-kicker">The next adventure awaits</span>
+                  <h2>Where will Jewish Audio Theater take you next?</h2>
+                  <p>Continue the adventure with the next chapter, or step into a whole new story.</p>
                 </div>
                 <div className="bedtime-choice-grid">
                   {transitionChoices.map((episode, index) => {
@@ -893,7 +893,7 @@ export default function App() {
                     return (
                       <button key={episode.id} className={`bedtime-choice ${isNextChapter ? 'next-chapter' : ''} ${queuedEpisode?.id === episode.id ? 'queued' : ''}`} onClick={() => chooseBedtimeHandoff(episode)}>
                         <Artwork src={episode.imageUrl} alt="" className="bedtime-choice-art" />
-                        <span>{isNextChapter ? 'Next Chapter' : index === 0 && !upNext ? 'Another Story' : 'Choose Another Story'}</span>
+                        <span>{isNextChapter ? 'Next Chapter' : index === 0 && !upNext ? 'New Adventure' : 'Discover Another Story'}</span>
                         <strong>{episode.title}</strong>
                         <small>{queuedEpisode?.id === episode.id
                           ? (smartHandoffActive ? 'Queued • listening for the natural ending • tap again to start now' : 'Queued • starts when this story ends • tap again to start now')
@@ -902,7 +902,7 @@ export default function App() {
                     );
                   })}
                 </div>
-                <div className="bedtime-rest-note">If they’re asleep, do nothing. Nothing else will start. If you choose a story, JAT will use a conservative silence handoff when available and otherwise wait for the file’s true end.</div>
+                <div className="bedtime-rest-note">No choice? The curtain falls here. Nothing else will play.</div>
               </div>
             </aside>
           )}
