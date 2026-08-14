@@ -35,6 +35,10 @@ type SequenceInfo = {
 const FEED_URL = '/api/feed';
 const CACHE_KEY = 'jat_repertory_v3';
 const CACHE_TTL = 10 * 60 * 1000;
+const SMART_SILENCE_WINDOW_SECONDS = 8;
+const SMART_SILENCE_HOLD_MS = 1800;
+const SMART_SILENCE_RMS = 0.0085;
+const SMART_SIGNAL_RMS = 0.014;
 const FALLBACK_ART =
   'data:image/svg+xml;charset=UTF-8,' +
   encodeURIComponent(`
@@ -177,11 +181,22 @@ export default function App() {
   const [duration, setDuration] = useState(0);
   const [playbackError, setPlaybackError] = useState(false);
   const [lightsDown, setLightsDown] = useState(false);
-  const [autoContinue, setAutoContinue] = useState(true);
   const [upNext, setUpNext] = useState<Episode | null>(null);
-  const [upNextDismissedFor, setUpNextDismissedFor] = useState<string | null>(null);
+  const [transitionChoices, setTransitionChoices] = useState<Episode[]>([]);
+  const [showBedtimeHandoff, setShowBedtimeHandoff] = useState(false);
+  const [handoffDismissedFor, setHandoffDismissedFor] = useState<string | null>(null);
+  const [chimePlayedFor, setChimePlayedFor] = useState<string | null>(null);
+  const [queuedEpisode, setQueuedEpisode] = useState<Episode | null>(null);
+  const [smartHandoffActive, setSmartHandoffActive] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const queuedEpisodeRef = useRef<Episode | null>(null);
+  const analysisAudioRef = useRef<HTMLAudioElement | null>(null);
+  const analysisContextRef = useRef<AudioContext | null>(null);
+  const analysisFrameRef = useRef<number | null>(null);
+  const analysisSilenceStartedAtRef = useRef<number | null>(null);
+  const analysisSawSignalRef = useRef(false);
+  const transitionInFlightRef = useRef(false);
 
   const loadCatalog = async (force = false) => {
     setLoadError(false);
@@ -219,6 +234,10 @@ export default function App() {
     loadCatalog();
   }, []);
 
+  useEffect(() => {
+    queuedEpisodeRef.current = queuedEpisode;
+  }, [queuedEpisode]);
+
   const featured = episodes[0] || null;
 
   const filteredEpisodes = useMemo(() => {
@@ -252,13 +271,195 @@ export default function App() {
     return null;
   };
 
+  const getBedtimeChoices = (episode: Episode) => {
+    const next = findNextChapter(episode);
+    const alternatives = episodes
+      .filter((candidate) => candidate.id !== episode.id && candidate.id !== next?.id)
+      .slice(0, next ? 2 : 3);
+    return next ? [next, ...alternatives] : alternatives;
+  };
+
+  const playParentChime = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const context = new AudioContextClass();
+      const gain = context.createGain();
+      const first = context.createOscillator();
+      const second = context.createOscillator();
+      const now = context.currentTime;
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.018, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+      first.frequency.setValueAtTime(784, now);
+      second.frequency.setValueAtTime(1174.66, now);
+      first.type = 'sine';
+      second.type = 'sine';
+      first.connect(gain);
+      second.connect(gain);
+      gain.connect(context.destination);
+      first.start(now);
+      second.start(now + 0.08);
+      first.stop(now + 0.5);
+      second.stop(now + 0.7);
+      window.setTimeout(() => void context.close(), 900);
+    } catch {
+      // The story must never be interrupted because a notification tone failed.
+    }
+  };
+
+  const stopSilenceMonitor = () => {
+    if (analysisFrameRef.current !== null) {
+      cancelAnimationFrame(analysisFrameRef.current);
+      analysisFrameRef.current = null;
+    }
+
+    const analysisAudio = analysisAudioRef.current;
+    if (analysisAudio) {
+      analysisAudio.pause();
+      analysisAudio.removeAttribute('src');
+      analysisAudio.load();
+      analysisAudioRef.current = null;
+    }
+
+    const context = analysisContextRef.current;
+    if (context) {
+      void context.close().catch(() => {});
+      analysisContextRef.current = null;
+    }
+
+    analysisSilenceStartedAtRef.current = null;
+    analysisSawSignalRef.current = false;
+    setSmartHandoffActive(false);
+  };
+
+  const startSilenceMonitor = async () => {
+    const mainAudio = audioRef.current;
+    const currentEpisode = activeEpisode;
+    if (!mainAudio || !currentEpisode || mainAudio.ended) return;
+
+    stopSilenceMonitor();
+
+    try {
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const analysisAudio = new Audio();
+      analysisAudio.crossOrigin = 'anonymous';
+      analysisAudio.preload = 'auto';
+      analysisAudio.src = currentEpisode.audioUrl;
+      analysisAudioRef.current = analysisAudio;
+
+      await new Promise<void>((resolve, reject) => {
+        const onReady = () => { cleanup(); resolve(); };
+        const onError = () => { cleanup(); reject(new Error('Analyzer media unavailable')); };
+        const cleanup = () => {
+          analysisAudio.removeEventListener('loadedmetadata', onReady);
+          analysisAudio.removeEventListener('error', onError);
+        };
+        analysisAudio.addEventListener('loadedmetadata', onReady, { once: true });
+        analysisAudio.addEventListener('error', onError, { once: true });
+        analysisAudio.load();
+      });
+
+      const context = new AudioContextClass();
+      analysisContextRef.current = context;
+      const source = context.createMediaElementSource(analysisAudio);
+      const analyser = context.createAnalyser();
+      const silentGain = context.createGain();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0;
+      silentGain.gain.value = 0;
+      source.connect(analyser);
+      analyser.connect(silentGain);
+      silentGain.connect(context.destination);
+
+      if (context.state === 'suspended') await context.resume();
+
+      const target = Math.min(mainAudio.currentTime || 0, Number.isFinite(analysisAudio.duration) ? Math.max(0, analysisAudio.duration - 0.05) : mainAudio.currentTime || 0);
+      analysisAudio.currentTime = target;
+      await analysisAudio.play();
+      setSmartHandoffActive(true);
+
+      const samples = new Uint8Array(analyser.fftSize);
+
+      const monitor = () => {
+        const main = audioRef.current;
+        const queued = queuedEpisodeRef.current;
+        if (!main || !queued || transitionInFlightRef.current) {
+          stopSilenceMonitor();
+          return;
+        }
+
+        if (main.paused || main.ended) {
+          analysisSilenceStartedAtRef.current = null;
+          if (!analysisAudio.paused) analysisAudio.pause();
+          analysisFrameRef.current = requestAnimationFrame(monitor);
+          return;
+        }
+
+        if (analysisAudio.paused) {
+          void analysisAudio.play().catch(() => stopSilenceMonitor());
+        }
+
+        if (Math.abs((analysisAudio.currentTime || 0) - (main.currentTime || 0)) > 0.45) {
+          try { analysisAudio.currentTime = main.currentTime || 0; } catch { /* seek sync is best effort */ }
+        }
+
+        analyser.getByteTimeDomainData(samples);
+        let squareSum = 0;
+        for (let i = 0; i < samples.length; i += 1) {
+          const normalized = (samples[i] - 128) / 128;
+          squareSum += normalized * normalized;
+        }
+        const rms = Math.sqrt(squareSum / samples.length);
+        if (rms >= SMART_SIGNAL_RMS) analysisSawSignalRef.current = true;
+
+        const total = Number.isFinite(main.duration) ? main.duration : 0;
+        const remaining = total - (main.currentTime || 0);
+        const inSmartWindow = total > 0 && remaining > 0 && remaining <= SMART_SILENCE_WINDOW_SECONDS;
+
+        if (inSmartWindow && analysisSawSignalRef.current && rms <= SMART_SILENCE_RMS) {
+          if (analysisSilenceStartedAtRef.current === null) {
+            analysisSilenceStartedAtRef.current = performance.now();
+          } else if (performance.now() - analysisSilenceStartedAtRef.current >= SMART_SILENCE_HOLD_MS) {
+            transitionInFlightRef.current = true;
+            const next = queuedEpisodeRef.current;
+            stopSilenceMonitor();
+            setQueuedEpisode(null);
+            if (next) void beginEpisode(next);
+            return;
+          }
+        } else {
+          analysisSilenceStartedAtRef.current = null;
+        }
+
+        analysisFrameRef.current = requestAnimationFrame(monitor);
+      };
+
+      analysisFrameRef.current = requestAnimationFrame(monitor);
+    } catch {
+      // Cross-origin analysis is optional. Never risk the production audio:
+      // if the browser/CDN cannot expose waveform data, the queued story
+      // simply waits for the real ended event instead.
+      stopSilenceMonitor();
+    }
+  };
+
   const beginEpisode = async (episode: Episode) => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    stopSilenceMonitor();
+    transitionInFlightRef.current = false;
+    setQueuedEpisode(null);
     setPlaybackError(false);
     setUpNext(null);
-    setUpNextDismissedFor(null);
+    setTransitionChoices([]);
+    setShowBedtimeHandoff(false);
+    setHandoffDismissedFor(null);
+    setChimePlayedFor(null);
     setCurrentTime(0);
     setDuration(0);
     setActiveEpisode(episode);
@@ -298,12 +499,18 @@ export default function App() {
       audio.removeAttribute('src');
       audio.load();
     }
+    stopSilenceMonitor();
+    transitionInFlightRef.current = false;
+    setQueuedEpisode(null);
     setActiveEpisode(null);
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setUpNext(null);
-    setUpNextDismissedFor(null);
+    setTransitionChoices([]);
+    setShowBedtimeHandoff(false);
+    setHandoffDismissedFor(null);
+    setChimePlayedFor(null);
     setPlaybackError(false);
     setLightsDown(false);
   };
@@ -317,25 +524,57 @@ export default function App() {
     if (total) setDuration(total);
 
     const remaining = total - current;
+
+    // Quiet parent cue: once, when the story enters its final minute.
+    // It never pauses, ducks, seeks, or otherwise changes the production audio.
+    if (
+      total > 75 &&
+      remaining <= 60 &&
+      remaining > 15 &&
+      chimePlayedFor !== activeEpisode.id
+    ) {
+      setChimePlayedFor(activeEpisode.id);
+      playParentChime();
+    }
+
+    // Bedtime handoff: change only the screen in the final 15 seconds.
+    // Audio continues untouched through the real end, including trailing silence.
     if (
       total > 30 &&
-      remaining <= 18 &&
+      remaining <= 15 &&
       remaining > 0 &&
-      upNextDismissedFor !== activeEpisode.id &&
-      !upNext
+      handoffDismissedFor !== activeEpisode.id &&
+      !showBedtimeHandoff
     ) {
-      setUpNext(findNextChapter(activeEpisode));
+      const choices = getBedtimeChoices(activeEpisode);
+      const next = findNextChapter(activeEpisode);
+      setUpNext(next);
+      setTransitionChoices(choices);
+      setShowBedtimeHandoff(true);
     }
   };
 
   const handleEnded = () => {
     setIsPlaying(false);
     setCurrentTime(duration);
-    const next = findNextChapter(activeEpisode);
-    if (autoContinue && next) {
-      void beginEpisode(next);
-    } else {
+    stopSilenceMonitor();
+
+    const queued = queuedEpisodeRef.current;
+    if (queued && !transitionInFlightRef.current) {
+      transitionInFlightRef.current = true;
+      setQueuedEpisode(null);
+      void beginEpisode(queued);
+      return;
+    }
+
+    // Bedtime-first behavior: without an explicit parental choice, never
+    // auto-start another production. The choices remain on screen while
+    // the room stays quiet.
+    if (activeEpisode && handoffDismissedFor !== activeEpisode.id) {
+      const next = findNextChapter(activeEpisode);
       setUpNext(next);
+      setTransitionChoices(getBedtimeChoices(activeEpisode));
+      setShowBedtimeHandoff(true);
     }
   };
 
@@ -351,15 +590,41 @@ export default function App() {
     seek(target);
   };
 
-  const dismissUpNext = () => {
-    if (activeEpisode) setUpNextDismissedFor(activeEpisode.id);
-    setUpNext(null);
+  const chooseBedtimeHandoff = (episode: Episode) => {
+    const audio = audioRef.current;
+    const storyHasEnded = !audio || audio.ended || (duration > 0 && duration - currentTime <= 0.2);
+
+    // Once the file has ended, a tap starts immediately. During the final
+    // seconds, the first tap queues the selection for a natural-silence
+    // handoff; tapping the already-queued choice again is an explicit
+    // "start now" override.
+    if (storyHasEnded || queuedEpisode?.id === episode.id) {
+      transitionInFlightRef.current = true;
+      stopSilenceMonitor();
+      setQueuedEpisode(null);
+      void beginEpisode(episode);
+      return;
+    }
+
+    setQueuedEpisode(episode);
+    queuedEpisodeRef.current = episode;
+    void startSilenceMonitor();
+  };
+
+  const dismissBedtimeHandoff = () => {
+    if (activeEpisode) setHandoffDismissedFor(activeEpisode.id);
+    setQueuedEpisode(null);
+    queuedEpisodeRef.current = null;
+    stopSilenceMonitor();
+    setShowBedtimeHandoff(false);
   };
 
   const scrollTo = (id: string) => {
     setMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  useEffect(() => () => stopSilenceMonitor(), []);
 
   if (loading && episodes.length === 0) {
     return (
@@ -385,13 +650,32 @@ export default function App() {
     );
   }
 
+  const remainingSeconds = duration > 0 ? Math.max(0, Math.ceil(duration - currentTime)) : 0;
+  const finalMinuteAlert = Boolean(
+    activeEpisode &&
+    duration > 75 &&
+    remainingSeconds <= 60 &&
+    remainingSeconds > 15 &&
+    !showBedtimeHandoff
+  );
+
   return (
-    <div className={`app-shell ${lightsDown ? 'lights-down' : ''} ${activeEpisode ? 'has-player' : ''}`}>
+    <div className={`app-shell ${lightsDown ? 'lights-down' : ''} ${activeEpisode ? 'has-player' : ''} ${finalMinuteAlert ? 'final-minute-alert' : ''}`}>
+      {finalMinuteAlert && <div className="final-minute-ambient" aria-hidden="true" />}
       <audio
         ref={audioRef}
         preload="metadata"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={() => {
+          setIsPlaying(true);
+          if (analysisAudioRef.current?.paused && queuedEpisodeRef.current) {
+            void analysisAudioRef.current.play().catch(() => stopSilenceMonitor());
+          }
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          analysisAudioRef.current?.pause();
+          analysisSilenceStartedAtRef.current = null;
+        }}
         onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
         onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
         onTimeUpdate={handleTimeUpdate}
@@ -593,20 +877,43 @@ export default function App() {
 
       {activeEpisode && (
         <>
-          {upNext && (
-            <aside className="up-next" aria-live="polite">
-              <button className="up-next-close" onClick={dismissUpNext} aria-label="Dismiss up next"><X size={16} /></button>
-              <Artwork src={upNext.imageUrl} alt="" className="up-next-art" />
-              <div>
-                <span>Up Next</span>
-                <strong>{upNext.title}</strong>
-                <p>{autoContinue ? 'Begins when this production ends' : 'Ready when you are'}</p>
+          {showBedtimeHandoff && transitionChoices.length > 0 && (
+            <aside className="bedtime-handoff" aria-live="polite" aria-label="Story ending choices">
+              <div className="bedtime-handoff-shade" />
+              <div className="bedtime-handoff-panel">
+                <button className="bedtime-handoff-close" onClick={dismissBedtimeHandoff} aria-label="Keep listening without choices"><X size={18} /></button>
+                <div className="bedtime-handoff-copy">
+                  <span className="bedtime-kicker">The story is almost over</span>
+                  <h2>{upNext ? 'If they’re still awake…' : 'Still awake?'}</h2>
+                  <p>Choose what should come next if they are still awake. While this story is still playing, your choice is queued and waits for a natural ending.</p>
+                </div>
+                <div className="bedtime-choice-grid">
+                  {transitionChoices.map((episode, index) => {
+                    const isNextChapter = upNext?.id === episode.id;
+                    return (
+                      <button key={episode.id} className={`bedtime-choice ${isNextChapter ? 'next-chapter' : ''} ${queuedEpisode?.id === episode.id ? 'queued' : ''}`} onClick={() => chooseBedtimeHandoff(episode)}>
+                        <Artwork src={episode.imageUrl} alt="" className="bedtime-choice-art" />
+                        <span>{isNextChapter ? 'Next Chapter' : index === 0 && !upNext ? 'Another Story' : 'Choose Another Story'}</span>
+                        <strong>{episode.title}</strong>
+                        <small>{queuedEpisode?.id === episode.id
+                          ? (smartHandoffActive ? 'Queued • listening for the natural ending • tap again to start now' : 'Queued • starts when this story ends • tap again to start now')
+                          : (isPlaying ? 'Tap to queue for the natural ending' : 'Tap to start now')}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="bedtime-rest-note">If they’re asleep, do nothing. Nothing else will start. If you choose a story, JAT will use a conservative silence handoff when available and otherwise wait for the file’s true end.</div>
               </div>
-              <button className="up-next-play" onClick={() => beginEpisode(upNext)} aria-label={`Play ${upNext.title}`}><Play size={17} fill="currentColor" /></button>
             </aside>
           )}
 
-          <div className="player-shell" role="region" aria-label="Audio player">
+          <div className={`player-shell ${finalMinuteAlert ? 'player-final-minute' : ''}`} role="region" aria-label="Audio player">
+            {finalMinuteAlert && (
+              <div className="final-minute-banner" role="status">
+                <span>1 Minute Alert</span>
+                <strong>Story finishes in {remainingSeconds}s</strong>
+              </div>
+            )}
             {playbackError && (
               <div className="player-error">Playback could not start. Press play to try again.</div>
             )}
@@ -646,10 +953,6 @@ export default function App() {
               </div>
 
               <div className="player-options">
-                <label className="autoplay-control">
-                  <input type="checkbox" checked={autoContinue} onChange={(event) => setAutoContinue(event.target.checked)} />
-                  <span>Continue chapters</span>
-                </label>
                 <Volume2 size={18} className="volume-icon" />
                 <button className="player-close" onClick={closePlayer} aria-label="Close player"><X size={22} /></button>
               </div>
