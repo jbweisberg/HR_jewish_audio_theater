@@ -1,0 +1,150 @@
+.resume-curtain-card {
+  width: min(540px, 88vw);
+  margin: 24px auto 2px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 5px;
+  background: rgba(9, 6, 7, .72);
+  border: 1px solid rgba(212, 175, 55, .38);
+  color: #f5f2e8;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, .34);
+  backdrop-filter: blur(8px);
+}
+.resume-curtain-card span {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: #d4af37;
+}
+.resume-curtain-card strong {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 20px;
+  line-height: 1.05;
+  font-style: italic;
+}
+.resume-curtain-card small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(245, 242, 232, .68);
+}
+
+.desktop-nav button,
+.mobile-menu button,
+.footer-contact-button {
+  font: inherit;
+}
+.footer-contact-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.contact-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 3, 4, .84);
+  backdrop-filter: blur(11px);
+  animation: contactFade .18s ease both;
+}
+.contact-panel {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 36px;
+  background: linear-gradient(180deg, #120d0f, #090708);
+  color: #f1eadf;
+  border: 1px solid rgba(201, 164, 81, .36);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .62);
+  text-align: center;
+}
+.contact-close {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 164, 81, .15);
+  background: rgba(255, 255, 255, .04);
+  color: #c9a451;
+  cursor: pointer;
+}
+.contact-kicker {
+  display: block;
+  margin-bottom: 10px;
+  color: #c9a451;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+}
+.contact-panel h2 {
+  margin: 0 0 10px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(38px, 7vw, 58px);
+  font-style: italic;
+  line-height: 1;
+}
+.contact-panel > p {
+  margin: 0 0 26px;
+  color: #d6cec0;
+  word-break: break-word;
+}
+.contact-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.contact-primary,
+.contact-secondary,
+.contact-gmail {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.contact-primary {
+  border: 0;
+  background: #c9a451;
+  color: #070708;
+}
+.contact-secondary {
+  border: 1px solid rgba(201, 164, 81, .3);
+  background: #4c0d13;
+  color: #f1eadf;
+}
+.contact-gmail {
+  width: 100%;
+  border: 1px solid rgba(201, 164, 81, .24);
+  background: transparent;
+  color: #c9a451;
+}
+@keyframes contactFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (max-width: 600px) {
+  .contact-panel { padding: 32px 20px 22px; }
+  .contact-actions { grid-template-columns: 1fr; }
+}
