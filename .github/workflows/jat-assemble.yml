@@ -1,0 +1,37 @@
+name: Assemble JAT Build
+
+on:
+  push:
+    branches: [jat]
+    paths:
+      - '.jat-payload/**'
+      - '.github/workflows/jat-assemble.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out jat
+        uses: actions/checkout@v4
+        with:
+          ref: jat
+
+      - name: Assemble final source
+        shell: bash
+        run: |
+          base64 -d .jat-payload/app.gz.b64 | gzip -d > src/App.tsx
+          base64 -d .jat-payload/styles.gz.b64 | gzip -d > src/styles.css
+          rm -rf .jat-payload
+          rm .github/workflows/jat-assemble.yml
+
+      - name: Commit final JAT build
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "JAT: assemble final bedtime theater build"
+          git push origin HEAD:jat
