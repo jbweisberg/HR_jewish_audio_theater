@@ -1,11 +1,12 @@
-const REPERTORY_CACHE_KEY = 'jat_repertory_v3'
-const CHIME_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
+const CHIME_URL = '/api/chime'
 const CONTACT_EMAIL = 'Maggid@jewishaudiotheater.com'
+const RESUME_KEY = 'jat_resume_v1'
 
-try {
-  localStorage.removeItem(REPERTORY_CACHE_KEY)
-} catch {
-  // Storage can be unavailable in privacy modes; the app still works.
+type ResumeState = {
+  title: string
+  currentTime: number
+  duration: number
+  savedAt: number
 }
 
 let attachedAudio: HTMLAudioElement | null = null
@@ -13,6 +14,8 @@ let warnedForLoad = false
 let armedChime: HTMLAudioElement | null = null
 let chimeArmed = false
 let contactOverlay: HTMLDivElement | null = null
+let resumeCard: HTMLButtonElement | null = null
+let lastSavedSecond = -1
 
 const getArmedChime = () => {
   if (armedChime) return armedChime
@@ -80,21 +83,169 @@ const soundTheaterChime = () => {
   return !direct.paused
 }
 
+const formatClock = (value: number) => {
+  const seconds = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0))
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+const getActiveTitle = () => {
+  const playerTitle = document.querySelector('.player-title-wrap strong')
+  return playerTitle?.textContent?.trim() || ''
+}
+
+const clearResume = () => {
+  try { localStorage.removeItem(RESUME_KEY) } catch { /* best effort */ }
+  resumeCard?.remove()
+  resumeCard = null
+}
+
+const saveResume = () => {
+  const audio = attachedAudio
+  if (!audio) return
+
+  const duration = Number.isFinite(audio.duration) ? audio.duration : 0
+  const currentTime = audio.currentTime || 0
+  const title = getActiveTitle()
+
+  if (!title || currentTime < 20) return
+  if (duration > 0 && duration - currentTime < 30) {
+    clearResume()
+    return
+  }
+
+  const wholeSecond = Math.floor(currentTime)
+  if (wholeSecond === lastSavedSecond) return
+  lastSavedSecond = wholeSecond
+
+  const state: ResumeState = { title, currentTime, duration, savedAt: Date.now() }
+  try { localStorage.setItem(RESUME_KEY, JSON.stringify(state)) } catch { /* best effort */ }
+}
+
+const readResume = (): ResumeState | null => {
+  try {
+    const raw = localStorage.getItem(RESUME_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as ResumeState
+    if (!parsed.title || parsed.currentTime < 30) return null
+    if (parsed.duration > 0 && parsed.duration - parsed.currentTime < 60) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+const clickStoryByTitle = (title: string, resumeAt = 0) => {
+  const normalized = title.trim().toLowerCase()
+
+  const heroTitle = document.querySelector('#featured-title')?.textContent?.trim().toLowerCase()
+  if (heroTitle === normalized) {
+    const heroButton = document.querySelector<HTMLButtonElement>('.hero-play')
+    if (heroButton) {
+      heroButton.click()
+      if (resumeAt > 0) scheduleResumeSeek(resumeAt)
+      return true
+    }
+  }
+
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('.production-card'))
+  const card = cards.find((node) => node.querySelector('h3')?.textContent?.trim().toLowerCase() === normalized)
+  const playButton = card?.querySelector<HTMLButtonElement>('.production-card-copy button, .production-art-button')
+  if (playButton) {
+    playButton.click()
+    if (resumeAt > 0) scheduleResumeSeek(resumeAt)
+    return true
+  }
+
+  return false
+}
+
+const scheduleResumeSeek = (seconds: number) => {
+  const apply = () => {
+    const audio = document.querySelector('audio')
+    if (!(audio instanceof HTMLAudioElement)) return
+
+    const seek = () => {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : 0
+      const target = duration > 0 ? Math.min(seconds, Math.max(0, duration - 1)) : seconds
+      try {
+        audio.currentTime = target
+        void audio.play().catch(() => {})
+      } catch {
+        // A later metadata event may still be needed.
+      }
+    }
+
+    if (audio.readyState >= 1) seek()
+    else audio.addEventListener('loadedmetadata', seek, { once: true })
+  }
+
+  window.setTimeout(apply, 80)
+}
+
+const renderResumeCard = () => {
+  if (resumeCard || !document.querySelector('.entrance-content')) return
+  const state = readResume()
+  if (!state) return
+
+  const host = document.querySelector('.entrance-content')
+  if (!host) return
+
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.style.cssText = [
+    'width:min(540px,88vw)',
+    'margin:24px auto 2px',
+    'padding:16px 18px',
+    'display:grid',
+    'gap:5px',
+    'background:rgba(9,6,7,.72)',
+    'border:1px solid rgba(212,175,55,.38)',
+    'color:#f5f2e8',
+    'text-align:left',
+    'cursor:pointer',
+    'box-shadow:0 18px 55px rgba(0,0,0,.34)',
+    'backdrop-filter:blur(8px)'
+  ].join(';')
+  button.innerHTML = `
+    <span style="font-size:9px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:#d4af37">The curtain is waiting</span>
+    <strong style="font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;line-height:1.05;font-style:italic">Continue ${state.title}</strong>
+    <small style="font-size:11px;color:rgba(245,242,232,.68)">Resume at ${formatClock(state.currentTime)} · Tap to continue</small>
+  `
+
+  button.addEventListener('click', () => {
+    armChimeFromUserGesture()
+    const enter = document.querySelector<HTMLButtonElement>('.entrance-button')
+    enter?.click()
+    window.setTimeout(() => {
+      if (!clickStoryByTitle(state.title, state.currentTime)) clearResume()
+    }, 120)
+  })
+
+  const footnote = host.querySelector('.entrance-footnote')
+  if (footnote) host.insertBefore(button, footnote)
+  else host.appendChild(button)
+  resumeCard = button
+}
+
 const onTimeUpdate = () => {
   const audio = attachedAudio
-  if (!audio || warnedForLoad) return
+  if (!audio) return
 
   const duration = Number.isFinite(audio.duration) ? audio.duration : 0
   const current = audio.currentTime || 0
   const remaining = duration - current
 
-  if (duration > 65 && remaining <= 60.5 && remaining >= 59.0) {
+  if (Math.floor(current) % 5 === 0) saveResume()
+
+  if (!warnedForLoad && duration > 65 && remaining <= 60.5 && remaining >= 59.0) {
     if (soundTheaterChime()) warnedForLoad = true
   }
 }
 
 const resetCueForStory = () => {
   warnedForLoad = false
+  lastSavedSecond = -1
 
   const chime = getArmedChime()
   if (!chime.paused) {
@@ -109,12 +260,14 @@ const attachAudio = (audio: HTMLAudioElement) => {
 
   if (attachedAudio) {
     attachedAudio.removeEventListener('timeupdate', onTimeUpdate)
+    attachedAudio.removeEventListener('ended', clearResume)
   }
 
   attachedAudio = audio
   resetCueForStory()
   audio.addEventListener('timeupdate', onTimeUpdate)
   audio.addEventListener('loadstart', resetCueForStory)
+  audio.addEventListener('ended', clearResume)
 }
 
 const revealImageWhenReady = (image: HTMLImageElement) => {
@@ -169,7 +322,7 @@ const closeContactPanel = () => {
   contactOverlay = null
 }
 
-const openContactPanel = () => {
+const openContactPanel = (subject = 'Jewish Audio Theater') => {
   if (contactOverlay) return
 
   const overlay = document.createElement('div')
@@ -224,21 +377,38 @@ const openContactPanel = () => {
     void copyContactEmail(event.currentTarget)
   })
   panel.querySelector<HTMLButtonElement>('[data-contact-mail]')?.addEventListener('click', () => {
-    window.location.href = `mailto:${CONTACT_EMAIL}`
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`
   })
   panel.querySelector<HTMLButtonElement>('[data-contact-gmail]')?.addEventListener('click', () => {
     window.open(
-      `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(CONTACT_EMAIL)}`,
+      `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(CONTACT_EMAIL)}&su=${encodeURIComponent(subject)}`,
       '_blank',
       'noopener,noreferrer'
     )
   })
 }
 
+const handleImmediateStoryChoice = (event: Event) => {
+  const target = event.target instanceof Element ? event.target : null
+  const choice = target?.closest('.bedtime-choice') as HTMLButtonElement | null
+  if (!choice) return
+
+  const title = choice.querySelector('strong')?.textContent?.trim()
+  if (!title) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  if ('stopImmediatePropagation' in event) event.stopImmediatePropagation()
+  armChimeFromUserGesture()
+  window.setTimeout(() => { void clickStoryByTitle(title) }, 0)
+}
+
 document.addEventListener('pointerdown', armChimeFromUserGesture, { passive: true })
 document.addEventListener('touchstart', armChimeFromUserGesture, { passive: true })
 document.addEventListener('click', armChimeFromUserGesture, { passive: true })
 document.addEventListener('keydown', armChimeFromUserGesture)
+
+document.addEventListener('click', handleImmediateStoryChoice, true)
 
 // Intercept every JAT contact mailto so clicking Contact always produces a
 // visible in-browser action, even when Chrome has no default email handler.
@@ -252,23 +422,27 @@ document.addEventListener('click', (event) => {
 
   event.preventDefault()
   event.stopPropagation()
-  openContactPanel()
+  const subject = href.toLowerCase().includes('audition') ? 'Jewish Audio Theater Audition' : 'Jewish Audio Theater'
+  openContactPanel(subject)
 }, true)
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && contactOverlay) closeContactPanel()
 })
 
-// Chrome can restore a recently closed tab from its page cache. Never carry
-// the continuously armed hidden chime through that lifecycle boundary.
 window.addEventListener('pagehide', () => {
+  saveResume()
   stopArmedChime()
   closeContactPanel()
 })
-window.addEventListener('beforeunload', stopArmedChime)
+window.addEventListener('beforeunload', () => {
+  saveResume()
+  stopArmedChime()
+})
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
+    saveResume()
     stopArmedChime()
   }
 })
@@ -278,10 +452,12 @@ window.addEventListener('pageshow', () => {
   chimeArmed = false
   findAndAttachAudio()
   processImages()
+  renderResumeCard()
 })
 
 const observer = new MutationObserver((mutations) => {
   findAndAttachAudio()
+  renderResumeCard()
 
   for (const mutation of mutations) {
     if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
@@ -309,3 +485,4 @@ observer.observe(document.documentElement, {
 getArmedChime()
 findAndAttachAudio()
 processImages()
+renderResumeCard()
