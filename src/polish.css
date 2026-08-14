@@ -140,11 +140,156 @@
   background: transparent;
   color: #c9a451;
 }
+
+.audition-stage-grid {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: .9fr 1.1fr;
+  gap: clamp(34px, 7vw, 84px);
+  align-items: center;
+}
+.audition-stage-copy h2 {
+  max-width: 560px;
+}
+.audition-stage-copy > p:last-child {
+  max-width: 520px;
+}
+.audition-portal {
+  padding: clamp(28px, 5vw, 52px);
+  background: #f3efe3;
+  color: #08090c;
+  border-top: 7px solid #c9a451;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, .18);
+}
+.audition-portal-kicker {
+  display: block;
+  margin-bottom: 8px;
+  color: #66151c;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+}
+.audition-portal h3 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(34px, 5vw, 52px);
+  font-style: italic;
+  line-height: 1;
+}
+.audition-portal-intro {
+  margin: 12px 0 26px;
+  color: rgba(8, 9, 12, .6);
+  line-height: 1.65;
+}
+.audition-form {
+  display: grid;
+  gap: 20px;
+}
+.audition-form label {
+  display: grid;
+  gap: 7px;
+}
+.audition-form label > span {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(8, 9, 12, .48);
+}
+.audition-form input {
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 2px solid rgba(8, 9, 12, .13);
+  background: transparent;
+  color: #08090c;
+  font: inherit;
+  outline: none;
+}
+.audition-form input:focus {
+  border-bottom-color: #c9a451;
+}
+.audition-submit {
+  min-height: 54px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  background: #090b10;
+  color: #d4af37;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.audition-submit:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+.audition-form-status {
+  margin-top: 14px;
+  font-size: 12px;
+}
+.audition-form-status.error {
+  color: #7b121b;
+}
+.audition-ready {
+  margin-top: 20px;
+  padding: 18px;
+  background: rgba(201, 164, 81, .12);
+  border: 1px solid rgba(201, 164, 81, .34);
+}
+.audition-ready > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #66151c;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.audition-ready > strong {
+  display: block;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 22px;
+  font-style: italic;
+}
+.audition-ready-actions {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.audition-ready-actions a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  text-decoration: none;
+  background: #4c0d13;
+  color: #f3efe3;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
 @keyframes contactFade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+@media (max-width: 760px) {
+  .audition-stage-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .contact-panel { padding: 32px 20px 22px; }
   .contact-actions { grid-template-columns: 1fr; }
+  .audition-ready-actions { grid-template-columns: 1fr; }
 }
