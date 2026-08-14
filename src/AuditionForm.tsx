@@ -1,7 +1,7 @@
 import React, { FormEvent, useState } from 'react'
-import { ExternalLink, Mail, Send } from 'lucide-react'
+import { Send } from 'lucide-react'
 
-const CONTACT_EMAIL = 'Maggid@jewishaudiotheater.com'
+const FORM_ENDPOINT = 'https://formspree.io/f/mbdnndlg'
 
 type AuditionFields = {
   name: string
@@ -11,7 +11,7 @@ type AuditionFields = {
 
 export default function AuditionForm() {
   const [fields, setFields] = useState<AuditionFields>({ name: '', age: '', email: '' })
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'ready' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
 
   const update = (key: keyof AuditionFields, value: string) => {
@@ -22,34 +22,39 @@ export default function AuditionForm() {
     }
   }
 
-  const emailSubject = 'Jewish Audio Theater Audition'
-  const emailBody = [
-    'Jewish Audio Theater Audition Submission',
-    '',
-    `Name: ${fields.name}`,
-    `Age of Participant: ${fields.age}`,
-    `Email Address: ${fields.email}`,
-    '',
-    'I would like to be considered for an upcoming Jewish Audio Theater production.',
-  ].join('\n')
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setStatus('submitting')
     setMessage('')
 
+    const form = event.currentTarget
+    const data = new FormData(form)
+
     try {
-      const response = await fetch('/api/audition', {
+      const response = await fetch(FORM_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fields),
+        body: data,
+        headers: { Accept: 'application/json' },
       })
-      const result = await response.json() as { ready?: boolean; error?: string }
-      if (!response.ok || !result.ready) throw new Error(result.error || 'Please check the form and try again.')
-      setStatus('ready')
+
+      if (!response.ok) {
+        let errorMessage = 'We could not submit the audition. Please try again.'
+        try {
+          const result = await response.json() as { errors?: Array<{ message?: string }> }
+          const formspreeMessage = result.errors?.map((item) => item.message).filter(Boolean).join(' ')
+          if (formspreeMessage) errorMessage = formspreeMessage
+        } catch {
+          // Keep the clear fallback message if Formspree returns non-JSON.
+        }
+        throw new Error(errorMessage)
+      }
+
+      setFields({ name: '', age: '', email: '' })
+      setStatus('success')
+      setMessage('Your audition has been submitted to Jewish Audio Theater.')
     } catch (error) {
       setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Please check the form and try again.')
+      setMessage(error instanceof Error ? error.message : 'We could not submit the audition. Please try again.')
     }
   }
 
@@ -57,9 +62,11 @@ export default function AuditionForm() {
     <div className="audition-portal">
       <span className="audition-portal-kicker">Submission Portal</span>
       <h3>Step onto the stage.</h3>
-      <p className="audition-portal-intro">Tell us who would like to audition. We’ll prepare the submission for The Maggid.</p>
+      <p className="audition-portal-intro">Tell us who would like to audition for an upcoming Jewish Audio Theater production.</p>
 
-      <form className="audition-form" onSubmit={submit}>
+      <form className="audition-form" action={FORM_ENDPOINT} method="POST" onSubmit={submit}>
+        <input type="hidden" name="_subject" value="New Jewish Audio Theater Audition" />
+
         <label>
           <span>Full Name</span>
           <input
@@ -95,30 +102,15 @@ export default function AuditionForm() {
         </label>
 
         <button className="audition-submit" type="submit" disabled={status === 'submitting'}>
-          <Send size={17} /> {status === 'submitting' ? 'Preparing Audition…' : 'Submit Audition'}
+          <Send size={17} /> {status === 'submitting' ? 'Submitting Audition…' : 'Submit Audition'}
         </button>
       </form>
 
       {status === 'error' && <div className="audition-form-status error" role="alert">{message}</div>}
-
-      {status === 'ready' && (
-        <div className="audition-ready" role="status">
-          <span>Audition prepared</span>
-          <strong>Send your submission to Jewish Audio Theater</strong>
-          <div className="audition-ready-actions">
-            <a
-              href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`}
-            >
-              <Mail size={16} /> Open Email App
-            </a>
-            <a
-              href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(CONTACT_EMAIL)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink size={16} /> Open Gmail
-            </a>
-          </div>
+      {status === 'success' && (
+        <div className="audition-form-status success" role="status">
+          <strong>Audition submitted.</strong>
+          <span>{message}</span>
         </div>
       )}
     </div>
