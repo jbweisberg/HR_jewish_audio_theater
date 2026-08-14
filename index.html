@@ -1,77 +1,66 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    
-    <!-- PRIMARY SEO -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070708" />
+    <meta name="color-scheme" content="dark" />
+
     <title>Jewish Audio Theater | Timeless Stories Brought to Life</title>
-    <meta name="description" content="The definitive digital home for Jewish Audio Theater. Timeless Jewish stories, history, and suspense brought to life by master storyteller Heshy Riesel." />
-    <meta name="keywords" content="Jewish Audio Theater, Heshy Riesel, Jewish Stories, The Maggid, Jewish Audio Dramas, Kosher Entertainment, Jewish Podcasts" />
-    <link rel="canonical" href="https://jewishaudiotheater.com" />
+    <meta name="description" content="Jewish Audio Theater is the digital home of immersive Jewish stories and historical audio productions by Heshy Riesel, The Maggid." />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <link rel="canonical" href="https://jewishaudiotheater.com/" />
 
-    <!-- SOCIAL SHARING METADATA -->
-    <meta property="og:title" content="Jewish Audio Theater | Heshy Riesel" />
-    <meta property="og:description" content="Timeless Jewish stories brought to life by The Maggid, Heshy Riesel." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://jewishaudiotheater.com" />
     <meta property="og:site_name" content="Jewish Audio Theater" />
+    <meta property="og:title" content="Jewish Audio Theater | Heshy Riesel" />
+    <meta property="og:description" content="Timeless Jewish stories brought to life by Heshy Riesel, The Maggid." />
+    <meta property="og:url" content="https://jewishaudiotheater.com/" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Jewish Audio Theater | Heshy Riesel" />
+    <meta name="twitter:description" content="Timeless Jewish stories brought to life by Heshy Riesel, The Maggid." />
 
-    <!-- ADVANCED AEO: JSON-LD SCHEMA FOR AI & SEARCH ENGINES -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
     <script type="application/ld+json">
-    [
       {
         "@context": "https://schema.org",
-        "@type": "PodcastSeries",
-        "name": "Jewish Audio Theater",
-        "description": "Immersive Jewish stories and historical adventures produced by Heshy Riesel.",
-        "url": "https://jewishaudiotheater.com",
-        "author": {
-          "@type": "Person",
-          "name": "Heshy Riesel",
-          "jobTitle": "Maggid and Storyteller",
-          "url": "https://jewishaudiotheater.com"
-        },
-        "publisher": {
-          "@type": "Organization",
-          "name": "Jewish Audio Theater"
-        }
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "WebPage",
-        "name": "Jewish Audio Theater Official Site",
-        "speakable": {
-          "@type": "SpeakableSpecification",
-          "cssSelector": [".vso-target"]
-        }
-      }
-    ]
-    </script>
-
-    <!-- TAILWIND & FONTS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;700;900&family=Pinyon+Script&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              theater: { midnight: '#02040A', parchment: '#F5F2E8', burgundy: '#4A0404', velvet: '#630606', gold: '#D4AF37' }
-            },
-            fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Inter', 'sans-serif'], ornate: ['Pinyon Script', 'cursive'] }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://jewishaudiotheater.com/#website",
+            "url": "https://jewishaudiotheater.com/",
+            "name": "Jewish Audio Theater",
+            "description": "Timeless Jewish stories brought to life through immersive audio theater.",
+            "publisher": { "@id": "https://jewishaudiotheater.com/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://jewishaudiotheater.com/#organization",
+            "name": "Jewish Audio Theater",
+            "url": "https://jewishaudiotheater.com/",
+            "founder": { "@id": "https://jewishaudiotheater.com/#heshy-riesel" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://jewishaudiotheater.com/#heshy-riesel",
+            "name": "Heshy Riesel",
+            "jobTitle": "The Maggid",
+            "url": "https://jewishaudiotheater.com/"
+          },
+          {
+            "@type": "PodcastSeries",
+            "@id": "https://jewishaudiotheater.com/#series",
+            "name": "Jewish Audio Theater",
+            "url": "https://jewishaudiotheater.com/",
+            "author": { "@id": "https://jewishaudiotheater.com/#heshy-riesel" },
+            "publisher": { "@id": "https://jewishaudiotheater.com/#organization" }
           }
-        }
+        ]
       }
     </script>
-    <style>
-      body { background-color: #02040A; color: #F5F2E8; margin: 0; overflow-x: hidden; width: 100%; -webkit-tap-highlight-color: transparent; }
-      html { scroll-behavior: smooth; }
-      .is-bedtime #stage-content { filter: brightness(0.2) blur(10px); transition: all 1.5s ease-in-out; pointer-events: none; }
-      .jat-portal-insignia { font-family: 'Pinyon Script', cursive; font-size: clamp(100px, 20vw, 240px); background: linear-gradient(to bottom, #D4AF37 0%, #FFF 40%, #B8860B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.5; padding: 40px 10px; display: block; text-align: center; filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8)); }
-      input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #D4AF37; border-radius: 50%; cursor: pointer; border: 2px solid #000; }
-    </style>
   </head>
   <body>
     <div id="root"></div>
