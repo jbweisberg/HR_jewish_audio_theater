@@ -303,3 +303,5 @@ jobs:
           git add src/App.tsx
           git commit -m "JAT: polish handoff, chime, and artwork loading"
           git push origin HEAD:jat
+
+# trigger: 2026-08-14 final polish
