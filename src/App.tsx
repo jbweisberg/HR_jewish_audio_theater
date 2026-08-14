@@ -1,363 +1,661 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Play, Pause, X, Library, CheckCircle2, Menu, Globe, Music, 
-  Share2, AlertCircle, Headphones, ArrowRight, Lamp, Loader2, PlayCircle, FastForward, Lock, Star, Mic2
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowRight,
+  ChevronRight,
+  Headphones,
+  Mail,
+  Menu,
+  Moon,
+  Pause,
+  Play,
+  Search,
+  SkipForward,
+  Sparkles,
+  Volume2,
+  X,
 } from 'lucide-react';
 
-const RSS_URL = "https://feed.podbean.com/handyhesh/feed.xml";
-const CHIME_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
-const CACHE_KEY = "jat_production_build_v1";
+type Episode = {
+  id: string;
+  title: string;
+  description: string;
+  audioUrl: string;
+  imageUrl: string;
+  publishedAt: string;
+  durationText: string;
+  index: number;
+};
+
+type SequenceInfo = {
+  root: string;
+  part: number | null;
+};
+
+const FEED_URL = '/api/feed';
+const CACHE_KEY = 'jat_repertory_v3';
+const CACHE_TTL = 10 * 60 * 1000;
+const FALLBACK_ART =
+  'data:image/svg+xml;charset=UTF-8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+          <stop offset="0" stop-color="#65181c"/>
+          <stop offset="0.48" stop-color="#1a0b0d"/>
+          <stop offset="1" stop-color="#050506"/>
+        </radialGradient>
+        <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f4df9b"/>
+          <stop offset="0.45" stop-color="#c59a38"/>
+          <stop offset="1" stop-color="#7a5520"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="1200" fill="url(#bg)"/>
+      <circle cx="600" cy="600" r="370" fill="none" stroke="url(#gold)" stroke-width="3" opacity=".55"/>
+      <circle cx="600" cy="600" r="320" fill="none" stroke="#d8b45b" stroke-width="1" opacity=".22"/>
+      <text x="600" y="625" text-anchor="middle" fill="url(#gold)" font-size="260" font-family="Georgia, serif" font-weight="700" font-style="italic">JAT</text>
+      <text x="600" y="740" text-anchor="middle" fill="#eee7db" opacity=".75" font-size="34" font-family="Arial, sans-serif" letter-spacing="12">JEWISH AUDIO THEATER</text>
+    </svg>
+  `);
+
+const htmlToText = (html: string) => {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+};
+
+const formatClock = (value: number) => {
+  if (!Number.isFinite(value) || value < 0) return '0:00';
+  const seconds = Math.floor(value);
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}:${remainder.toString().padStart(2, '0')}`;
+};
+
+const romanToNumber = (value: string) => {
+  const roman = value.toUpperCase();
+  const map: Record<string, number> = { I: 1, V: 5, X: 10 };
+  let total = 0;
+  for (let i = 0; i < roman.length; i += 1) {
+    const current = map[roman[i]] || 0;
+    const next = map[roman[i + 1]] || 0;
+    total += current < next ? -current : current;
+  }
+  return total || null;
+};
+
+const sequenceInfo = (title: string): SequenceInfo => {
+  const normalized = title.replace(/[–—]/g, '-').trim();
+  const match = normalized.match(
+    /(?:\s*[-:|]\s*|\s+)(?:part|pt\.?|chapter|episode)\s*(\d+|[ivx]+)\b/i
+  );
+  const part = match
+    ? /^\d+$/.test(match[1])
+      ? Number(match[1])
+      : romanToNumber(match[1])
+    : null;
+  const root = normalized
+    .replace(/(?:\s*[-:|]\s*|\s+)(?:part|pt\.?|chapter|episode)\s*(?:\d+|[ivx]+)\b.*$/i, '')
+    .replace(/[^a-z0-9\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return { root, part };
+};
+
+const sameStory = (a: string, b: string) => {
+  const aa = sequenceInfo(a);
+  const bb = sequenceInfo(b);
+  if (!aa.root || !bb.root) return false;
+  return aa.root === bb.root || (aa.root.length > 8 && bb.root.includes(aa.root)) || (bb.root.length > 8 && aa.root.includes(bb.root));
+};
+
+const parseFeed = (xmlText: string): Episode[] => {
+  const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (xml.querySelector('parsererror')) throw new Error('Invalid RSS response');
+
+  const channelArt =
+    xml.getElementsByTagName('itunes:image')[0]?.getAttribute('href') ||
+    xml.querySelector('channel > image > url')?.textContent ||
+    '';
+
+  return Array.from(xml.querySelectorAll('item'))
+    .map((item, index) => {
+      const rawDescription =
+        item.querySelector('description')?.textContent ||
+        item.getElementsByTagName('content:encoded')[0]?.textContent ||
+        '';
+      const imageUrl =
+        item.getElementsByTagName('itunes:image')[0]?.getAttribute('href') ||
+        item.querySelector('image')?.getAttribute('href') ||
+        channelArt ||
+        '';
+      return {
+        id: item.querySelector('guid')?.textContent?.trim() || `jat-${index}`,
+        title: item.querySelector('title')?.textContent?.trim() || 'Jewish Audio Theater Production',
+        description: htmlToText(rawDescription),
+        audioUrl: item.querySelector('enclosure')?.getAttribute('url') || '',
+        imageUrl,
+        publishedAt: item.querySelector('pubDate')?.textContent?.trim() || '',
+        durationText: item.getElementsByTagName('itunes:duration')[0]?.textContent?.trim() || '',
+        index,
+      };
+    })
+    .filter((episode) => Boolean(episode.audioUrl));
+};
+
+const safeDate = (date: string) => {
+  if (!date) return '';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.valueOf())) return '';
+  return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+function Artwork({ src, alt, className = '' }: { src: string; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <img
+      src={!src || failed ? FALLBACK_ART : src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 export default function App() {
-  const [episodes, setEpisodes] = useState<any[]>([]);
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeEp, setActiveEp] = useState<any>(null);
-  const [currentMode, setCurrentMode] = useState<'gate' | 'theater'>('gate');
-  
-  const [showNextOverlay, setShowNextOverlay] = useState(false);
-  const [transitionList, setTransitionList] = useState<any[]>([]);
-  const [isSeriesLink, setIsSeriesLink] = useState(false);
-  
+  const [loadError, setLoadError] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeEpisode, setActiveEpisode] = useState<Episode | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [countdown, setCountdown] = useState(10);
-  const [warned, setWarned] = useState(false);
-  const [isDimmed, setIsDimmed] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+  const [playbackError, setPlaybackError] = useState(false);
+  const [lightsDown, setLightsDown] = useState(false);
+  const [autoContinue, setAutoContinue] = useState(true);
+  const [upNext, setUpNext] = useState<Episode | null>(null);
+  const [upNextDismissedFor, setUpNextDismissedFor] = useState<string | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const formatTime = (time: number) => {
-    if (isNaN(time)) return "0:00";
-    const min = Math.floor(time / 60);
-    const sec = Math.floor(time % 60);
-    return `${min}:${sec < 10 ? '0' + sec : sec}`;
-  };
-
-  // MULTI-PROXY GATEWAY INITIALIZATION
-  useEffect(() => {
-    async function loadCatalog() {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) { setEpisodes(JSON.parse(cached)); setLoading(false); }
-
-      const proxies = [
-        `https://api.allorigins.win/get?url=${encodeURIComponent(RSS_URL)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(RSS_URL)}`
-      ];
-
+  const loadCatalog = async (force = false) => {
+    setLoadError(false);
+    if (!force) {
       try {
-        const fetchPromises = proxies.map(async (url) => {
-          const res = await fetch(url);
-          if (!res.ok) throw new Error("Bad response");
-          const data = await res.json();
-          const xmlRaw = data.contents || data;
-          if (typeof xmlRaw !== 'string' || !xmlRaw.includes('<item>')) throw new Error("Bad format");
-          return xmlRaw;
-        });
-
-        const fastXmlRaw = await Promise.any(fetchPromises);
-        const xml = new DOMParser().parseFromString(fastXmlRaw, "text/xml");
-        const items = Array.from(xml.querySelectorAll("item")).map((item, i) => ({
-          id: item.querySelector("guid")?.textContent || `jat-${i}`,
-          title: item.querySelector("title")?.textContent || "Production",
-          desc: item.querySelector("description")?.textContent?.replace(/<[^>]*>/g, '').slice(0, 180) + "...",
-          url: item.querySelector("enclosure")?.getAttribute("url") || "",
-          image: item.getElementsByTagName("itunes:image")[0]?.getAttribute("href") || xml.querySelector("image url")?.textContent || "",
-        }));
-
-        setEpisodes(items);
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify(items));
-        setLoading(false);
-      } catch (e) {
-        setLoading(false);
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached) as { savedAt: number; episodes: Episode[] };
+          if (Date.now() - parsed.savedAt < CACHE_TTL && parsed.episodes?.length) {
+            setEpisodes(parsed.episodes);
+            setLoading(false);
+          }
+        }
+      } catch {
+        localStorage.removeItem(CACHE_KEY);
       }
     }
+
+    try {
+      const response = await fetch(FEED_URL, { headers: { Accept: 'application/rss+xml, text/xml' } });
+      if (!response.ok) throw new Error('Feed request failed');
+      const xml = await response.text();
+      const parsed = parseFeed(xml);
+      if (!parsed.length) throw new Error('No productions found');
+      setEpisodes(parsed);
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), episodes: parsed }));
+      setLoading(false);
+    } catch {
+      setLoading(false);
+      setLoadError(true);
+    }
+  };
+
+  useEffect(() => {
     loadCatalog();
   }, []);
 
-  // CONTINUITY TIMER
-  useEffect(() => {
-    let timer: any;
-    if (showNextOverlay && isSeriesLink && countdown > 0) {
-      timer = setInterval(() => setCountdown(c => c - 1), 1000);
-    } else if (showNextOverlay && isSeriesLink && countdown === 0) {
-      handleAutoTransition();
-    }
-    return () => clearInterval(timer);
-  }, [showNextOverlay, countdown, isSeriesLink]);
+  const featured = episodes[0] || null;
 
-  const handleAutoTransition = () => {
-    if (transitionList[0]) {
-      const next = transitionList[0];
-      setShowNextOverlay(false);
-      togglePlay(next);
+  const filteredEpisodes = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const list = featured ? episodes.slice(1) : episodes;
+    if (!needle) return list;
+    return list.filter((episode) =>
+      `${episode.title} ${episode.description}`.toLowerCase().includes(needle)
+    );
+  }, [episodes, featured, query]);
+
+  const findNextChapter = (episode: Episode | null) => {
+    if (!episode) return null;
+    const current = sequenceInfo(episode.title);
+    if (!current.root) return null;
+
+    const candidates = episodes.filter((candidate) => candidate.id !== episode.id && sameStory(candidate.title, episode.title));
+    if (!candidates.length) return null;
+
+    if (current.part !== null) {
+      const exact = candidates.find((candidate) => sequenceInfo(candidate.title).part === current.part! + 1);
+      if (exact) return exact;
+    }
+
+    const currentPosition = episodes.findIndex((candidate) => candidate.id === episode.id);
+    const adjacentNewer = currentPosition > 0 ? episodes[currentPosition - 1] : null;
+    if (adjacentNewer && sameStory(adjacentNewer.title, episode.title)) return adjacentNewer;
+    const adjacentOlder = currentPosition < episodes.length - 1 ? episodes[currentPosition + 1] : null;
+    if (adjacentOlder && sameStory(adjacentOlder.title, episode.title)) return adjacentOlder;
+
+    return null;
+  };
+
+  const beginEpisode = async (episode: Episode) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    setPlaybackError(false);
+    setUpNext(null);
+    setUpNextDismissedFor(null);
+    setCurrentTime(0);
+    setDuration(0);
+    setActiveEpisode(episode);
+    setEntered(true);
+
+    audio.pause();
+    audio.src = episode.audioUrl;
+    audio.load();
+
+    try {
+      await audio.play();
+    } catch {
+      setIsPlaying(false);
+      setPlaybackError(true);
     }
   };
 
-  const togglePlay = (ep?: any) => {
-    if (!audioRef.current) return;
-    setShowNextOverlay(false);
-    setWarned(false);
-    setCountdown(10);
-    
-    if (ep && ep.id && (!activeEp || ep.id !== activeEp.id)) {
-      setActiveEp(ep);
-      setIsPlaying(true);
-      audioRef.current.src = ep.url;
-      audioRef.current.load();
-      audioRef.current.play().catch(() => setIsPlaying(false));
-      setCurrentMode('theater');
-    } else if (activeEp) {
-      isPlaying ? audioRef.current.pause() : audioRef.current.play().catch(() => {});
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  // PLAYBACK PROGRESS AND INTERCEPTS
-  const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
-    const cur = audioRef.current.currentTime;
-    const dur = audioRef.current.duration;
-    if (!dur || isNaN(dur)) return;
-    setCurrentTime(cur);
-
-    // SEAMLESS INTERCEPT: 15s remaining
-    if (!showNextOverlay && (dur - cur <= 15) && (dur - cur > 1)) {
-      generateSequenceMap();
-    }
-
-    // PARENT CHIME: 60s remaining
-    if (!showNextOverlay && dur > 65 && (dur - cur <= 60.5 && dur - cur >= 59.5) && !warned) {
-      setWarned(true);
-      new Audio(CHIME_URL).play().catch(() => {});
-    }
-  };
-
-  // SEMANTIC SEQUEL MATCHER
-  const generateSequenceMap = () => {
-    const idx = episodes.findIndex(e => e.id === activeEp.id);
-    
-    const cleanTitle = (title: string) => {
-      return title.toLowerCase().replace(/\b(part|pt|chapter|episode)\s*\d+\b/gi, '').replace(/[^\w\s]/gi, '').trim();
-    };
-    
-    const rootName = cleanTitle(activeEp.title);
-    let pathOptions: any[] = [];
-    let linkSuccess = false;
-
-    if (idx > 0) {
-      const newerPart = episodes[idx - 1];
-      const newerRoot = cleanTitle(newerPart.title);
-      
-      if (newerRoot === rootName || (rootName.length > 3 && newerRoot.includes(rootName))) {
-        pathOptions.push(newerPart);
-        linkSuccess = true;
+  const togglePlayback = async () => {
+    const audio = audioRef.current;
+    if (!audio || !activeEpisode) return;
+    setPlaybackError(false);
+    if (audio.paused) {
+      try {
+        await audio.play();
+      } catch {
+        setPlaybackError(true);
       }
+    } else {
+      audio.pause();
     }
-
-    const recs = episodes.filter(e => e.id !== activeEp.id && (!linkSuccess || e.id !== pathOptions[0].id))
-                         .sort(() => 0.5 - Math.random()).slice(0, linkSuccess ? 2 : 3);
-    
-    setTransitionList([...pathOptions, ...recs]);
-    setIsSeriesLink(linkSuccess);
-    setShowNextOverlay(true);
   };
 
-  if (loading && episodes.length === 0) return <div className="h-screen bg-[#02040A] flex items-center justify-center text-[#D4AF37]"><Loader2 className="animate-spin" size={48}/></div>;
+  const closePlayer = () => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    setActiveEpisode(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setUpNext(null);
+    setUpNextDismissedFor(null);
+    setPlaybackError(false);
+    setLightsDown(false);
+  };
 
-  const isFinalMinute = duration > 65 && (duration - currentTime <= 60) && (duration - currentTime > 0) && !showNextOverlay;
+  const handleTimeUpdate = () => {
+    const audio = audioRef.current;
+    if (!audio || !activeEpisode) return;
+    const current = audio.currentTime || 0;
+    const total = Number.isFinite(audio.duration) ? audio.duration : 0;
+    setCurrentTime(current);
+    if (total) setDuration(total);
 
-  // VIEW: GATEWAY
-  if (currentMode === 'gate') {
+    const remaining = total - current;
+    if (
+      total > 30 &&
+      remaining <= 18 &&
+      remaining > 0 &&
+      upNextDismissedFor !== activeEpisode.id &&
+      !upNext
+    ) {
+      setUpNext(findNextChapter(activeEpisode));
+    }
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(duration);
+    const next = findNextChapter(activeEpisode);
+    if (autoContinue && next) {
+      void beginEpisode(next);
+    } else {
+      setUpNext(next);
+    }
+  };
+
+  const seek = (value: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = value;
+    setCurrentTime(value);
+  };
+
+  const skipForward = () => {
+    if (!audioRef.current) return;
+    const target = Math.min((audioRef.current.currentTime || 0) + 30, duration || Infinity);
+    seek(target);
+  };
+
+  const dismissUpNext = () => {
+    if (activeEpisode) setUpNextDismissedFor(activeEpisode.id);
+    setUpNext(null);
+  };
+
+  const scrollTo = (id: string) => {
+    setMenuOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  if (loading && episodes.length === 0) {
     return (
-      <div className="fixed inset-0 z-[8000] bg-[#02040A] flex flex-col items-center justify-center p-8 text-center animate-in zoom-in duration-1000 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#2a0202_0%,_#02040A_100%)] opacity-80 pointer-events-none"></div>
-        <h1 className="jat-portal-insignia select-none relative z-10">JAT</h1>
-        <p className="font-serif text-3xl md:text-5xl font-black uppercase italic tracking-[0.2em] mb-12 relative z-10 text-[#F5F2E8]">Enter the Portal</p>
-        <button 
-          onClick={() => { setCurrentMode('theater'); window.scrollTo(0,0); }}
-          className="relative z-10 bg-[#D4AF37] text-black px-16 py-8 font-black uppercase tracking-[0.2em] text-sm md:text-lg hover:bg-white transition shadow-[0_0_100px_#D4AF3744] active:scale-95"
-        >Open the Theater</button>
-        <div className="mt-20 opacity-30 text-[9px] font-black uppercase tracking-[0.6em] relative z-10">TIMELESS STORIES • HESHY RIESEL</div>
-      </div>
+      <main className="loading-screen">
+        <div className="loading-mark">JAT</div>
+        <div className="loading-line" />
+        <p>Raising the curtain</p>
+      </main>
     );
   }
 
-  // VIEW: THEATER STAGE
+  if (loadError && episodes.length === 0) {
+    return (
+      <main className="error-screen">
+        <div className="error-monogram">JAT</div>
+        <p className="eyebrow">The repertory is temporarily unavailable</p>
+        <h1>The curtain will rise again.</h1>
+        <p>We couldn't reach the Jewish Audio Theater archive. Your browser and the site are still working.</p>
+        <button className="gold-button" onClick={() => { setLoading(true); void loadCatalog(true); }}>
+          Try Again <ArrowRight size={18} />
+        </button>
+      </main>
+    );
+  }
+
   return (
-    <div className={`min-h-screen bg-[#02040A] text-[#F5F2E8] font-sans selection:bg-[#D4AF37] overflow-x-hidden ${isDimmed ? 'is-bedtime' : ''}`}>
-      <audio ref={audioRef} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)} onEnded={() => setIsPlaying(false)} preload="auto" />
+    <div className={`app-shell ${lightsDown ? 'lights-down' : ''} ${activeEpisode ? 'has-player' : ''}`}>
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+        onDurationChange={() => setDuration(audioRef.current?.duration || 0)}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
+        onError={() => setPlaybackError(true)}
+      />
 
-      {/* MOBILE MENU MODAL */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 z-[9000] bg-[#02040A]/98 backdrop-blur-xl flex flex-col items-center justify-center gap-12 animate-in fade-in">
-           <button onClick={() => setIsMenuOpen(false)} className="absolute top-8 right-8 text-[#D4AF37] p-2"><X size={40}/></button>
-           <a href="#repertory" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">The Repertory</a>
-           <a href="#casting" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">Audition</a>
-           <a href="mailto:Maggid@jewishaudiotheater.com" onClick={() => setIsMenuOpen(false)} className="text-4xl font-serif italic text-[#D4AF37]">Contact Heshy</a>
-        </div>
-      )}
-
-      {/* CONTINUITY OVERLAY */}
-      {showNextOverlay && (
-        <div className="fixed inset-0 z-[5000] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-10 animate-in slide-in-from-bottom duration-700 overflow-y-auto">
-           <div className="max-w-5xl w-full bg-[#F5F2E8] text-[#02040A] p-8 md:p-14 shadow-2xl border-t-[10px] border-[#D4AF37] relative my-auto">
-              <div className="text-center mb-10">
-                 <h2 className="text-4xl md:text-7xl font-serif italic font-black uppercase tracking-tighter">
-                   {isSeriesLink ? "The Story Continues" : "Pick Your Path Next"}
-                 </h2>
-                 <p className="text-[10px] uppercase font-black tracking-[0.4em] opacity-40 mt-4">
-                   {isSeriesLink ? "The next chapter is loading" : "Discover a new adventure from the repertory"}
-                 </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-10">
-                 {transitionList.map((ep, i) => (
-                   <div key={ep.id} onClick={() => togglePlay(ep)} className={`cursor-pointer group p-5 border-2 transition-all duration-500 ${i === 0 && isSeriesLink ? 'bg-white border-[#D4AF37] ring-8 ring-[#D4AF37]/10 scale-100 md:scale-105 shadow-2xl' : 'bg-black/5 border-transparent opacity-80 hover:opacity-100'}`}>
-                      <div className="relative aspect-square overflow-hidden mb-5 border-4 border-white shadow-sm">
-                         <img src={ep.image} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" alt=""/>
-                         {i === 0 && isSeriesLink && <div className="absolute top-0 right-0 bg-[#4A0404] text-white px-3 py-1 font-black text-[9px] uppercase shadow-xl animate-pulse">UP NEXT</div>}
-                      </div>
-                      <h4 className="font-serif text-lg md:text-xl font-black italic uppercase leading-none tracking-tight line-clamp-2">{ep.title}</h4>
-                      {i === 0 && isSeriesLink && <p className="mt-4 text-[#D4AF37] font-black text-[11px] uppercase animate-pulse tracking-widest">Auto-starting in {countdown}s</p>}
-                   </div>
-                 ))}
-              </div>
-              <button onClick={() => setShowNextOverlay(false)} className="mt-14 uppercase font-black text-[11px] opacity-20 hover:opacity-100 transition tracking-[1em] block w-full text-center py-4">Audio is playing in background... dismiss choice</button>
-           </div>
-        </div>
-      )}
-
-      {/* CORE CONTENT ROOT */}
-      <div id="stage-content">
-        <nav className="fixed top-0 w-full z-[100] h-20 md:h-24 bg-[#02040A]/60 backdrop-blur-xl border-b border-white/5 flex items-center px-6 md:px-12">
-          <div className="max-w-7xl mx-auto w-full flex justify-between items-center h-full">
-            <div className="flex flex-col text-left">
-               <h1 className="font-serif text-xl md:text-3xl text-[#D4AF37] leading-none italic font-black uppercase">Jewish Audio Theater</h1>
-               <p className="text-[9px] md:text-[10px] uppercase font-black text-white/50 mt-1 uppercase">Timeless Stories Brought to Life</p>
-            </div>
-            <div className="hidden md:flex items-center gap-12 text-[10px] font-black uppercase h-full pt-1">
-               <a href="#repertory" className="text-[#D4AF37] hover:text-white transition tracking-widest uppercase">The Repertory</a>
-               <button className="flex items-center gap-2 text-white/20 border border-white/10 px-6 py-2 tracking-widest opacity-20 cursor-not-allowed"> <Lock size={12}/> Entry Locked </button>
-               <a href="mailto:Maggid@jewishaudiotheater.com" className="border-l border-white/10 pl-10 text-white font-black hover:text-[#D4AF37] transition leading-none">Heshy Riesel • THE MAGGID</a>
-            </div>
-            <button onClick={() => setIsMenuOpen(true)} className="md:hidden text-[#D4AF37] pt-1 p-2"><Menu size={32}/></button>
+      {!entered && (
+        <div className="entrance" role="dialog" aria-label="Enter Jewish Audio Theater">
+          <div className="entrance-haze entrance-haze-one" />
+          <div className="entrance-haze entrance-haze-two" />
+          <div className="entrance-frame" />
+          <div className="entrance-content">
+            <span className="entrance-kicker">Heshy Riesel presents</span>
+            <div className="entrance-mark">JAT</div>
+            <h1>Jewish Audio Theater</h1>
+            <p>Timeless stories. Brought to life.</p>
+            <button className="entrance-button" onClick={() => setEntered(true)}>
+              Enter the Theater <ArrowRight size={18} />
+            </button>
+            <span className="entrance-footnote">Stories • History • Suspense • Imagination</span>
           </div>
+        </div>
+      )}
+
+      <header className="site-header">
+        <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Jewish Audio Theater home">
+          <span className="brand-monogram">JAT</span>
+          <span className="brand-copy">
+            <strong>Jewish Audio Theater</strong>
+            <small>Timeless stories brought to life</small>
+          </span>
+        </button>
+
+        <nav className="desktop-nav" aria-label="Primary navigation">
+          <button onClick={() => scrollTo('repertory')}>Repertory</button>
+          <button onClick={() => scrollTo('maggid')}>The Maggid</button>
+          <button onClick={() => scrollTo('auditions')}>Auditions</button>
+          <a href="mailto:Maggid@jewishaudiotheater.com">Contact</a>
         </nav>
 
-        {episodes.length > 0 && (
-          <header className="relative min-h-screen flex items-center pt-24 px-6 md:px-8 text-left z-10 overflow-hidden mb-20 md:mb-32">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#4A0E0E77_0%,_transparent_75%)] opacity-40 pointer-events-none"></div>
-            <div className="max-w-7xl mx-auto w-full grid md:grid-cols-12 gap-10 md:gap-24 relative z-10 items-center">
-              <div className="md:col-span-7 flex flex-col justify-center">
-                <h2 className="text-5xl sm:text-7xl lg:text-[110px] font-serif leading-[0.82] mb-12 uppercase tracking-tighter italic font-black text-white">{episodes[0].title}</h2>
-                <div className="h-1 w-20 bg-[#D4AF37] mb-10 opacity-30"></div>
-                <p className="text-xl md:text-3xl font-light opacity-90 mb-14 italic border-l-2 border-[#D4AF37]/50 pl-8 leading-relaxed text-[#F5F2E8]">"Timeless Stories Brought to Life"</p>
-                <button onClick={() => togglePlay(episodes[0])} className="w-full sm:w-fit bg-[#D4AF37] text-black px-12 md:px-20 py-6 md:py-8 font-black uppercase text-base hover:scale-105 transition shadow-2xl flex items-center justify-center gap-6">
-                  {activeEp && activeEp.id === episodes[0].id && isPlaying ? <Pause size={32}/> : <Play size={32} fill="black"/>} BEGIN PRODUCTION
-                </button>
-              </div>
-              <div className="hidden md:block md:col-span-5"><img src={episodes[0].image} className="w-full aspect-square object-cover border-8 border-[#D4AF37]/10 shadow-[0_0_100px_#000] grayscale transition duration-1000" alt="" /></div>
-            </div>
-          </header>
-        )}
+        <button className="menu-button" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+          <Menu size={25} />
+        </button>
+      </header>
 
-        <section id="repertory" className="bg-[#F5F2E8] text-[#02040A] py-32 px-10 border-y-[20px] border-[#02040A] shadow-inner relative z-10">
-           <div className="max-w-7xl mx-auto text-left">
-              <h3 className="text-6xl md:text-[150px] font-serif uppercase tracking-tighter mb-24 italic font-black border-b-[8px] border-black/5 pb-12 leading-none text-center">REPERTORY</h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-16 md:gap-x-12 md:gap-y-40 text-left">
-                {episodes.length > 1 && episodes.slice(1).map(ep => (
-                   <div key={ep.id} className="cursor-pointer group flex flex-col" onClick={() => togglePlay(ep)}>
-                      <div className="relative aspect-square overflow-hidden mb-10 shadow-2xl bg-[#000] border-4 border-white transition-all group-hover:border-[#D4AF37]">
-                        <img src={ep.image} loading="lazy" className="w-full h-full object-cover opacity-85 group-hover:scale-110 transition duration-1000" alt="" />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/40"><PlayCircle size={80} className="text-[#D4AF37]" fill="#000" /></div>
-                      </div>
-                      <h4 className="text-2xl md:text-5xl font-serif font-black italic uppercase leading-none tracking-tighter">{ep.title}</h4>
-                      <p className="mt-4 text-[11px] font-black uppercase text-[#4A0E0E] opacity-40 italic tracking-widest leading-none">THE MAGGID PRODUCTION</p>
-                   </div>
-                ))}
-              </div>
-           </div>
-        </section>
+      {menuOpen && (
+        <div className="mobile-menu">
+          <button className="mobile-menu-close" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X /></button>
+          <span className="mobile-menu-mark">JAT</span>
+          <button onClick={() => scrollTo('repertory')}>The Repertory</button>
+          <button onClick={() => scrollTo('maggid')}>The Maggid</button>
+          <button onClick={() => scrollTo('auditions')}>Auditions</button>
+          <a href="mailto:Maggid@jewishaudiotheater.com">Contact Heshy</a>
+        </div>
+      )}
 
-        <section id="casting" className="py-32 px-8 bg-[#02040A] border-y border-[#D4AF37]/10 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto relative z-10 grid lg:grid-cols-2 gap-20 items-center">
-            <div>
-              <div className="h-16 w-16 bg-[#D4AF37] text-black flex items-center justify-center mb-10 shadow-xl rounded-full">
-                <Mic2 size={32} />
-              </div>
-              <h2 className="text-5xl md:text-8xl font-serif uppercase tracking-tighter leading-none mb-8 italic text-[#D4AF37]">Your Voice <br/>On the Stage</h2>
-              <p className="text-xl md:text-2xl font-light opacity-70 leading-relaxed italic mb-10 text-[#F5F2E8]">
-                We are seeking children and parents to play roles in our upcoming theatrical productions. 
-              </p>
-              <div className="flex items-center gap-6 text-[#D4AF37] font-black uppercase tracking-widest text-xs">
-                <span className="flex items-center gap-2 text-white bg-[#4A0E0E] px-4 py-2"><Star size={16} fill="#D4AF37"/> Open Auditions</span>
-              </div>
-            </div>
-            <div className="bg-[#F5F2E8] p-10 md:p-14 text-[#02040A] shadow-[0_0_80px_rgba(212,175,55,0.15)] border-t-8 border-[#D4AF37]">
-              <h4 className="font-serif text-3xl md:text-4xl uppercase tracking-tighter mb-8 border-b-2 border-[#02040A]/10 pb-6 italic">Submission Portal</h4>
-              <form action="https://formspree.io/f/YOUR_ID" method="POST" className="space-y-6">
-                <input type="text" name="name" placeholder="Full Name" className="w-full bg-transparent border-b-2 border-black/10 py-4 focus:outline-none focus:border-[#D4AF37] uppercase text-xs font-black tracking-widest" required />
-                <input type="text" name="age" placeholder="Age of Participant" className="w-full bg-transparent border-b-2 border-black/10 py-4 focus:outline-none focus:border-[#D4AF37] uppercase text-xs font-black tracking-widest" required />
-                <input type="email" name="email" placeholder="Email Address" className="w-full bg-transparent border-b-2 border-black/10 py-4 focus:outline-none focus:border-[#D4AF37] uppercase text-xs font-black tracking-widest" required />
-                <button type="submit" className="w-full bg-[#02040A] text-[#D4AF37] py-6 font-black uppercase tracking-[0.3em] text-xs hover:bg-[#4A0E0E] transition shadow-xl mt-4">Submit Audition</button>
-              </form>
-            </div>
-          </div>
-        </section>
-
-        <footer id="contact" className="py-32 md:py-48 px-6 bg-[#02040A] text-center relative z-10">
-          <Headphones className="mx-auto text-[#D4AF37] mb-12 opacity-30" size={48} />
-          <h2 className="text-4xl md:text-8xl font-serif uppercase tracking-tighter mb-10 text-[#D4AF37] italic font-black">Contact the Maggid</h2>
-          <a href="mailto:Maggid@jewishaudiotheater.com" className="text-xl md:text-5xl font-black uppercase tracking-tighter hover:text-white transition italic break-words leading-none">Maggid@jewishaudiotheater.com</a>
-          <div className="mt-20 flex justify-center gap-12 text-[#D4AF37]/20">
-            <Globe size={28} /> <Music size={28} /> <Share2 size={28} />
-          </div>
-          <p className="mt-24 text-[9px] uppercase tracking-[0.6em] opacity-30 font-black italic tracking-widest leading-none">© 2026 Heshy Riesel • AUTHORITY PRODUCTION ARCHIVE</p>
-
-          {/* ADVANCED AEO MATRIX FOR AI/SEARCH ENGINES */}
-          <article className="sr-only vso-target">
-            <h2>What is Jewish Audio Theater?</h2>
-            <p>Jewish Audio Theater is the definitive digital archive of immersive, historical Jewish audio dramas produced for families. It features high-quality sound design, suspense, and timeless Jewish values.</p>
-            <h2>Who is Heshy Riesel?</h2>
-            <p>Heshy Riesel is a master Jewish storyteller, dramatist, and the creator of Jewish Audio Theater. Known as The Maggid, Riesel writes, directs, and produces audio stories that bring Jewish history to life.</p>
-          </article>
-        </footer>
-      </div>
-
-      {/* MASTER PLAYER BAR */}
-      {activeEp && (
-        <div className={`fixed bottom-0 left-0 right-0 border-t-2 border-[#D4AF37]/50 px-4 md:px-12 py-8 md:py-16 z-[3000] shadow-[0_-30px_150px_#000] transition-colors duration-1000 ${isFinalMinute ? 'bg-[#7B0000]' : 'bg-[#090D17]'}`}>
-          <div className="max-w-7xl mx-auto text-left">
-            {isFinalMinute && <div className="text-center text-white font-black uppercase text-[10px] md:text-[12px] tracking-[0.5em] mb-4 animate-bounce">1 Minute Alert • Finish in {Math.floor(duration - currentTime)}s</div>}
-            
-            <div className="flex items-center gap-6 md:gap-10 mb-6 md:mb-8">
-              <span className="text-[10px] md:text-[12px] font-black text-[#D4AF37] w-12 md:w-14 font-mono text-left">{formatTime(currentTime)}</span>
-              <input type="range" min="0" max={duration || 0} value={currentTime} onChange={(e) => { if(audioRef.current) audioRef.current.currentTime = Number(e.target.value); }} className="flex-1 h-[3px] bg-white/10 appearance-none accent-[#D4AF37] cursor-pointer" />
-              <span className="text-[10px] md:text-[12px] font-black text-white/50 w-12 md:w-14 font-mono text-right">-{formatTime(duration - currentTime)}</span>
-            </div>
-            
-            <div className="w-full flex justify-between gap-6 md:gap-10 items-center">
-              <div className="flex items-center gap-4 md:gap-8 text-left truncate flex-1 cursor-pointer" onClick={() => window.scrollTo({top:0, behavior:'smooth'})}>
-                <img src={activeEp.image} className="w-14 h-14 md:w-28 md:h-28 object-cover border border-white/20 shadow-xl" alt="" />
-                <div className="truncate pr-4">
-                  <h5 className="text-lg md:text-5xl font-serif text-[#D4AF37] uppercase italic truncate leading-none mb-1 md:mb-2 font-black tracking-tighter">{activeEp.title}</h5>
-                  <p className="text-[9px] md:text-xs uppercase font-black text-white/40 tracking-[0.2em] italic mt-2 md:mt-3 leading-none">HESHY RIESEL • THE MAGGID</p>
+      <main id="stage-content">
+        {featured && (
+          <section className="hero" aria-labelledby="featured-title">
+            <div className="hero-glow" />
+            <div className="hero-grid">
+              <div className="hero-copy">
+                <div className="hero-status"><span /> Now Showing</div>
+                <p className="eyebrow">A Jewish Audio Theater Production</p>
+                <h1 id="featured-title">{featured.title}</h1>
+                <p className="hero-description">
+                  {featured.description || 'Step inside a world of Jewish history, character, suspense and imagination.'}
+                </p>
+                <div className="hero-actions">
+                  <button className="gold-button hero-play" onClick={() => beginEpisode(featured)}>
+                    <Play size={19} fill="currentColor" /> Begin Production
+                  </button>
+                  <button className="text-button" onClick={() => scrollTo('repertory')}>
+                    Explore the Repertory <ArrowDown size={17} />
+                  </button>
+                </div>
+                <div className="hero-meta">
+                  {safeDate(featured.publishedAt) && <span>{safeDate(featured.publishedAt)}</span>}
+                  {featured.durationText && <span>{featured.durationText}</span>}
+                  <span>Heshy Riesel • The Maggid</span>
                 </div>
               </div>
-              <div className="flex items-center gap-6 md:gap-10">
-                <button onClick={() => setIsDimmed(!isDimmed)} className={`hidden sm:block p-4 md:p-6 rounded-full border transition-all ${isDimmed ? 'bg-[#D4AF37] text-black shadow-[0_0_50px_#D4AF3744]' : 'bg-white/5 text-white/20 border-white/5 hover:border-[#D4AF37]'}`}>
-                   <Lamp size={24} className="md:w-[32px] md:h-[32px]" />
+
+              <div className="hero-art-wrap">
+                <div className="hero-art-backdrop" />
+                <Artwork src={featured.imageUrl} alt={`Artwork for ${featured.title}`} className="hero-art" />
+                <div className="hero-art-seal">
+                  <span>Now</span>
+                  <strong>Playing</strong>
+                </div>
+              </div>
+            </div>
+            <button className="hero-scroll" onClick={() => scrollTo('repertory')} aria-label="Scroll to repertory"><ArrowDown /></button>
+          </section>
+        )}
+
+        <section className="manifesto" aria-label="Jewish Audio Theater introduction">
+          <div className="manifesto-rule" />
+          <p>Not simply told.</p>
+          <h2>Heard. Felt. Remembered.</h2>
+          <p className="manifesto-body">Jewish stories transformed into immersive audio theater through voice, character, atmosphere and suspense.</p>
+        </section>
+
+        <section id="repertory" className="repertory section-anchor">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow dark">The Archive</p>
+              <h2>The Repertory</h2>
+            </div>
+            <p>Every production. One stage.</p>
+          </div>
+
+          <div className="repertory-toolbar">
+            <label className="search-box">
+              <Search size={18} />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search stories, history, characters..."
+                aria-label="Search the repertory"
+              />
+              {query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={16} /></button>}
+            </label>
+            <span>{filteredEpisodes.length} productions</span>
+          </div>
+
+          {filteredEpisodes.length ? (
+            <div className="repertory-grid">
+              {filteredEpisodes.map((episode, index) => (
+                <article className="production-card" key={episode.id}>
+                  <button className="production-art-button" onClick={() => beginEpisode(episode)} aria-label={`Play ${episode.title}`}>
+                    <Artwork src={episode.imageUrl} alt={`Artwork for ${episode.title}`} className="production-art" />
+                    <span className="production-number">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="production-play"><Play fill="currentColor" /></span>
+                  </button>
+                  <div className="production-card-copy">
+                    <p className="production-label">The Maggid Production</p>
+                    <h3>{episode.title}</h3>
+                    <p>{episode.description || 'A production from the Jewish Audio Theater repertory.'}</p>
+                    <button onClick={() => beginEpisode(episode)}>
+                      Listen Now <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-search">
+              <Search />
+              <h3>No production matches “{query}”</h3>
+              <button onClick={() => setQuery('')}>View the full repertory</button>
+            </div>
+          )}
+        </section>
+
+        <section id="maggid" className="maggid section-anchor">
+          <div className="maggid-orbit" />
+          <div className="maggid-grid">
+            <div className="maggid-mark" aria-hidden="true">HR</div>
+            <div className="maggid-copy">
+              <p className="eyebrow">Behind the Curtain</p>
+              <h2>Heshy Riesel</h2>
+              <h3>The Maggid</h3>
+              <p>Storyteller, dramatist and creator of Jewish Audio Theater. Heshy Riesel brings Jewish stories and history to life through immersive audio productions made to be experienced, not merely heard.</p>
+              <a className="outline-button" href="mailto:Maggid@jewishaudiotheater.com">
+                <Mail size={17} /> Contact the Maggid
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section id="auditions" className="auditions section-anchor">
+          <div className="audition-icon"><Sparkles /></div>
+          <p className="eyebrow dark">Step Onto the Stage</p>
+          <h2>Your voice could be part of the next story.</h2>
+          <p>Jewish Audio Theater periodically casts children and adults for upcoming productions. Introduce yourself and ask about current opportunities.</p>
+          <a className="dark-button" href="mailto:Maggid@jewishaudiotheater.com?subject=Jewish%20Audio%20Theater%20Audition">
+            Audition Inquiry <ArrowRight size={18} />
+          </a>
+        </section>
+      </main>
+
+      <footer className="site-footer">
+        <div className="footer-brand">
+          <span className="footer-monogram">JAT</span>
+          <div>
+            <strong>Jewish Audio Theater</strong>
+            <p>Timeless stories brought to life.</p>
+          </div>
+        </div>
+        <div className="footer-contact">
+          <span>Heshy Riesel • The Maggid</span>
+          <a href="mailto:Maggid@jewishaudiotheater.com">Maggid@jewishaudiotheater.com</a>
+        </div>
+        <p className="footer-legal">© {new Date().getFullYear()} Jewish Audio Theater. All rights reserved.</p>
+      </footer>
+
+      {activeEpisode && (
+        <>
+          {upNext && (
+            <aside className="up-next" aria-live="polite">
+              <button className="up-next-close" onClick={dismissUpNext} aria-label="Dismiss up next"><X size={16} /></button>
+              <Artwork src={upNext.imageUrl} alt="" className="up-next-art" />
+              <div>
+                <span>Up Next</span>
+                <strong>{upNext.title}</strong>
+                <p>{autoContinue ? 'Begins when this production ends' : 'Ready when you are'}</p>
+              </div>
+              <button className="up-next-play" onClick={() => beginEpisode(upNext)} aria-label={`Play ${upNext.title}`}><Play size={17} fill="currentColor" /></button>
+            </aside>
+          )}
+
+          <div className="player-shell" role="region" aria-label="Audio player">
+            {playbackError && (
+              <div className="player-error">Playback could not start. Press play to try again.</div>
+            )}
+            <div className="player-progress-wrap">
+              <input
+                className="player-progress"
+                type="range"
+                min="0"
+                max={duration || 0}
+                value={Math.min(currentTime, duration || 0)}
+                onChange={(event) => seek(Number(event.target.value))}
+                aria-label="Playback position"
+              />
+            </div>
+            <div className="player-inner">
+              <div className="player-episode">
+                <Artwork src={activeEpisode.imageUrl} alt="" className="player-art" />
+                <div className="player-title-wrap">
+                  <span>Now Playing</span>
+                  <strong>{activeEpisode.title}</strong>
+                  <small>{formatClock(currentTime)} / {formatClock(duration)}</small>
+                </div>
+              </div>
+
+              <div className="player-controls">
+                <button className="icon-button" onClick={skipForward} aria-label="Skip forward 30 seconds"><SkipForward size={20} /></button>
+                <button className="main-play" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                  {isPlaying ? <Pause size={27} fill="currentColor" /> : <Play size={27} fill="currentColor" />}
                 </button>
-                <button onClick={() => togglePlay()} className="w-16 h-16 md:w-32 md:h-32 bg-[#D4AF37] rounded-full flex items-center justify-center text-black shadow-2xl hover:scale-105 active:scale-95 transition-all transform -rotate-1">
-                   {isPlaying ? <Pause size={40} className="md:w-[56px] md:h-[56px]" /> : <Play size={40} className="ml-1 md:w-[56px] md:h-[56px]" fill="black" />}
+                <button
+                  className={`icon-button ${lightsDown ? 'active' : ''}`}
+                  onClick={() => setLightsDown((value) => !value)}
+                  aria-label="Toggle lights down mode"
+                >
+                  <Moon size={20} />
                 </button>
-                <button onClick={() => { setActiveEp(null); setIsPlaying(false); }} className="text-white/20 p-2 hover:text-white transition-all transform hover:rotate-90 hover:scale-110"><X size={28} className="md:w-[40px] md:h-[40px]" /></button>
+              </div>
+
+              <div className="player-options">
+                <label className="autoplay-control">
+                  <input type="checkbox" checked={autoContinue} onChange={(event) => setAutoContinue(event.target.checked)} />
+                  <span>Continue chapters</span>
+                </label>
+                <Volume2 size={18} className="volume-icon" />
+                <button className="player-close" onClick={closePlayer} aria-label="Close player"><X size={22} /></button>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
