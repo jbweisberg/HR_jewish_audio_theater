@@ -18,13 +18,27 @@ const getArmedChime = () => {
   const chime = new Audio(CHIME_URL)
   chime.preload = 'auto'
   chime.loop = true
-  // Keep the element genuinely audible to the browser, but effectively
-  // inaudible to the listener. A zero-volume element can be optimized away.
   chime.volume = 0.001
   chime.playsInline = true
   chime.load()
   armedChime = chime
   return chime
+}
+
+const stopArmedChime = () => {
+  const chime = armedChime
+  if (!chime) return
+
+  try {
+    chime.pause()
+    chime.loop = true
+    chime.volume = 0.001
+    chime.currentTime = 0
+  } catch {
+    // Page lifecycle cleanup must never block navigation or restore.
+  }
+
+  chimeArmed = false
 }
 
 const armChimeFromUserGesture = () => {
@@ -47,8 +61,6 @@ const armChimeFromUserGesture = () => {
 const soundTheaterChime = () => {
   const chime = getArmedChime()
 
-  // Preferred path: this media element has already been playing since the
-  // listener's play tap. At the one-minute mark we only seek and raise volume.
   if (chimeArmed && !chime.paused) {
     try {
       chime.loop = false
@@ -56,11 +68,10 @@ const soundTheaterChime = () => {
       chime.volume = 0.9
       return true
     } catch {
-      // Fall through to the original direct-play behavior.
+      // Fall through to direct playback.
     }
   }
 
-  // Original JAT behavior as fallback.
   const direct = new Audio(CHIME_URL)
   direct.volume = 0.9
   void direct.play().catch(() => {})
@@ -130,12 +141,28 @@ const findAndAttachAudio = () => {
   if (audio instanceof HTMLAudioElement) attachAudio(audio)
 }
 
-// Arm the same real MP3 element during an actual listener gesture so Chrome
-// never needs to authorize a brand-new sound at the one-minute mark.
 document.addEventListener('pointerdown', armChimeFromUserGesture, { passive: true })
 document.addEventListener('touchstart', armChimeFromUserGesture, { passive: true })
 document.addEventListener('click', armChimeFromUserGesture, { passive: true })
 document.addEventListener('keydown', armChimeFromUserGesture)
+
+// Chrome can restore a recently closed tab from its page cache. Never carry
+// the continuously armed hidden chime through that lifecycle boundary.
+window.addEventListener('pagehide', stopArmedChime)
+window.addEventListener('beforeunload', stopArmedChime)
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    stopArmedChime()
+  }
+})
+
+window.addEventListener('pageshow', () => {
+  warnedForLoad = false
+  chimeArmed = false
+  findAndAttachAudio()
+  processImages()
+})
 
 const observer = new MutationObserver((mutations) => {
   findAndAttachAudio()
