@@ -1,5 +1,5 @@
 const REPERTORY_CACHE_KEY = 'jat_repertory_v3'
-const FALLBACK_CHIME_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
+const THEATER_CHIME_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
 
 try {
   localStorage.removeItem(REPERTORY_CACHE_KEY)
@@ -7,132 +7,88 @@ try {
   // Storage can be unavailable in privacy modes; the app still works.
 }
 
-type WebkitAudioWindow = Window & {
-  webkitAudioContext?: typeof AudioContext
-}
-
-let cueContext: AudioContext | null = null
-let cueKeepAlive: OscillatorNode | null = null
-let cueFallback: HTMLAudioElement | null = null
+let theaterChime: HTMLAudioElement | null = null
+let chimeArmed = false
 let attachedAudio: HTMLAudioElement | null = null
 let cuePlayedForLoad = false
 let cueAttemptInFlight = false
 
-const getAudioContextClass = () =>
-  window.AudioContext || (window as WebkitAudioWindow).webkitAudioContext
+const prepareTheaterChime = () => {
+  if (theaterChime) return theaterChime
 
-const ensureKeepAlive = (context: AudioContext) => {
-  if (cueKeepAlive) return
-  try {
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-    gain.gain.value = 0.000001
-    oscillator.frequency.value = 20
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-    oscillator.start()
-    cueKeepAlive = oscillator
-  } catch {
-    // Best effort only.
-  }
+  const chime = new Audio(THEATER_CHIME_URL)
+  chime.preload = 'auto'
+  chime.loop = true
+  chime.volume = 0
+  chime.playsInline = true
+  chime.load()
+  theaterChime = chime
+  return chime
 }
 
-const prepareFallback = () => {
-  if (!cueFallback) {
-    cueFallback = new Audio(FALLBACK_CHIME_URL)
-    cueFallback.preload = 'auto'
-    cueFallback.volume = 0.34
-    cueFallback.load()
-  }
-}
-
-const unlockCue = async () => {
-  prepareFallback()
+// Start the chime media element while the listener is actively tapping/clicking.
+// It then remains playing silently and already authorized. At the 1-minute mark
+// we only reveal its volume and restart it from the beginning — no new autoplay
+// permission is required at that later moment.
+const armTheaterChime = async () => {
+  const chime = prepareTheaterChime()
 
   try {
-    const AudioContextClass = getAudioContextClass()
-    if (!AudioContextClass) return
+    chime.loop = true
+    chime.volume = 0
 
-    if (!cueContext || cueContext.state === 'closed') {
-      cueContext = new AudioContextClass()
+    if (chime.paused) {
+      await chime.play()
     }
 
-    if (cueContext.state === 'suspended') {
-      await cueContext.resume()
-    }
-
-    if (cueContext.state === 'running') {
-      ensureKeepAlive(cueContext)
-    }
+    chimeArmed = !chime.paused
   } catch {
-    // The cue is optional and must never interfere with playback.
+    chimeArmed = false
   }
 }
 
-const soundWebAudioCue = (context: AudioContext) => {
-  const master = context.createGain()
-  const first = context.createOscillator()
-  const second = context.createOscillator()
-  const now = context.currentTime
-
-  master.gain.setValueAtTime(0.0001, now)
-  master.gain.exponentialRampToValueAtTime(0.11, now + 0.025)
-  master.gain.exponentialRampToValueAtTime(0.0001, now + 0.92)
-
-  first.type = 'sine'
-  second.type = 'sine'
-  first.frequency.setValueAtTime(659.25, now)
-  second.frequency.setValueAtTime(987.77, now)
-
-  first.connect(master)
-  second.connect(master)
-  master.connect(context.destination)
-
-  first.start(now)
-  second.start(now + 0.12)
-  first.stop(now + 0.62)
-  second.stop(now + 0.92)
-}
-
-const playFallbackCue = async (): Promise<boolean> => {
-  prepareFallback()
-  const fallback = cueFallback
-  if (!fallback) return false
-
-  try {
-    fallback.pause()
-    fallback.currentTime = 0
-    fallback.volume = 0.34
-    await fallback.play()
-    return true
-  } catch {
-    return false
-  }
-}
-
-const playCue = async (): Promise<boolean> => {
+const playTheaterChime = async (): Promise<boolean> => {
   if (cueAttemptInFlight) return false
   cueAttemptInFlight = true
 
   try {
-    const context = cueContext
-    if (context) {
-      if (context.state === 'suspended') {
-        try { await context.resume() } catch { /* fall through */ }
-      }
+    const chime = prepareTheaterChime()
 
-      if (context.state === 'running') {
-        soundWebAudioCue(context)
-        return true
-      }
+    // If the silent armed playback is still alive, this is just a seek +
+    // volume change on an already-playing media element.
+    if (chimeArmed && !chime.paused) {
+      chime.loop = false
+      chime.currentTime = 0
+      chime.volume = 0.52
+      return true
     }
 
-    return await playFallbackCue()
+    // Recovery path for browsers that suspended the silent element. Because
+    // the same element was previously user-activated, many browsers still
+    // permit this restart; if not, we leave the cue unplayed and retry.
+    chime.loop = false
+    chime.currentTime = 0
+    chime.volume = 0.52
+    await chime.play()
+    chimeArmed = true
+    return true
   } catch {
     return false
   } finally {
     cueAttemptInFlight = false
   }
+}
+
+const resetChimeForStory = () => {
+  cuePlayedForLoad = false
+  cueAttemptInFlight = false
+
+  const chime = prepareTheaterChime()
+  chime.volume = 0
+  chime.loop = true
+
+  // If it is still playing from the prior authorization, keep it armed.
+  chimeArmed = !chime.paused
 }
 
 const onTimeUpdate = () => {
@@ -142,10 +98,10 @@ const onTimeUpdate = () => {
   const duration = Number.isFinite(audio.duration) ? audio.duration : 0
   const remaining = duration - (audio.currentTime || 0)
 
-  // Keep trying throughout the first seconds of the final-minute window.
-  // We only mark the cue as played after a sound path actually starts.
-  if (duration > 75 && remaining <= 60 && remaining > 54) {
-    void playCue().then((started) => {
+  // Fire as the visual 1-minute state begins. Keep retrying for several
+  // seconds, but only mark success after the chime element is actually playing.
+  if (duration > 75 && remaining <= 60 && remaining > 52) {
+    void playTheaterChime().then((started) => {
       if (started) cuePlayedForLoad = true
     })
   }
@@ -159,13 +115,9 @@ const attachAudio = (audio: HTMLAudioElement) => {
   }
 
   attachedAudio = audio
-  cuePlayedForLoad = false
-  cueAttemptInFlight = false
+  resetChimeForStory()
   audio.addEventListener('timeupdate', onTimeUpdate)
-  audio.addEventListener('loadstart', () => {
-    cuePlayedForLoad = false
-    cueAttemptInFlight = false
-  })
+  audio.addEventListener('loadstart', resetChimeForStory)
 }
 
 const revealImageWhenReady = (image: HTMLImageElement) => {
@@ -194,11 +146,16 @@ const findAndAttachAudio = () => {
   if (audio instanceof HTMLAudioElement) attachAudio(audio)
 }
 
-const gestureUnlock = () => { void unlockCue() }
-document.addEventListener('pointerdown', gestureUnlock, { passive: true })
-document.addEventListener('touchstart', gestureUnlock, { passive: true })
-document.addEventListener('click', gestureUnlock, { passive: true })
-document.addEventListener('keydown', gestureUnlock)
+const gestureArm = () => {
+  void armTheaterChime()
+}
+
+// Any intentional listener interaction can arm the theater cue, including the
+// initial Begin Production / Listen Now tap and subsequent play/resume taps.
+document.addEventListener('pointerdown', gestureArm, { passive: true })
+document.addEventListener('touchstart', gestureArm, { passive: true })
+document.addEventListener('click', gestureArm, { passive: true })
+document.addEventListener('keydown', gestureArm)
 
 const observer = new MutationObserver((mutations) => {
   findAndAttachAudio()
@@ -226,6 +183,6 @@ observer.observe(document.documentElement, {
   attributeFilter: ['src'],
 })
 
-prepareFallback()
+prepareTheaterChime()
 findAndAttachAudio()
 processImages()
