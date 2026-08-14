@@ -1,8 +1,6 @@
 const REPERTORY_CACHE_KEY = 'jat_repertory_v3'
 const FALLBACK_CHIME_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
 
-// Always paint the current feed first. This avoids briefly showing artwork
-// from a prior cached feed before the current repertory arrives.
 try {
   localStorage.removeItem(REPERTORY_CACHE_KEY)
 } catch {
@@ -16,9 +14,9 @@ type WebkitAudioWindow = Window & {
 let cueContext: AudioContext | null = null
 let cueKeepAlive: OscillatorNode | null = null
 let cueFallback: HTMLAudioElement | null = null
-let fallbackPrimed = false
 let attachedAudio: HTMLAudioElement | null = null
 let cuePlayedForLoad = false
+let cueAttemptInFlight = false
 
 const getAudioContextClass = () =>
   window.AudioContext || (window as WebkitAudioWindow).webkitAudioContext
@@ -39,105 +37,102 @@ const ensureKeepAlive = (context: AudioContext) => {
   }
 }
 
-const primeFallback = async () => {
-  try {
-    if (!cueFallback) {
-      cueFallback = new Audio(FALLBACK_CHIME_URL)
-      cueFallback.preload = 'auto'
-    }
-    if (fallbackPrimed) return
-
-    cueFallback.volume = 0
-    await cueFallback.play()
-    cueFallback.pause()
-    cueFallback.currentTime = 0
-    fallbackPrimed = true
-  } catch {
-    // The Web Audio cue remains the primary path.
+const prepareFallback = () => {
+  if (!cueFallback) {
+    cueFallback = new Audio(FALLBACK_CHIME_URL)
+    cueFallback.preload = 'auto'
+    cueFallback.volume = 0.34
+    cueFallback.load()
   }
 }
 
 const unlockCue = async () => {
+  prepareFallback()
+
   try {
     const AudioContextClass = getAudioContextClass()
-    if (AudioContextClass) {
-      if (!cueContext || cueContext.state === 'closed') {
-        cueContext = new AudioContextClass()
-      }
+    if (!AudioContextClass) return
 
-      if (cueContext.state === 'suspended') {
-        await cueContext.resume()
-      }
+    if (!cueContext || cueContext.state === 'closed') {
+      cueContext = new AudioContextClass()
+    }
 
-      if (cueContext.state === 'running') {
-        ensureKeepAlive(cueContext)
-      }
+    if (cueContext.state === 'suspended') {
+      await cueContext.resume()
+    }
+
+    if (cueContext.state === 'running') {
+      ensureKeepAlive(cueContext)
     }
   } catch {
     // The cue is optional and must never interfere with playback.
   }
-
-  void primeFallback()
 }
 
 const soundWebAudioCue = (context: AudioContext) => {
-  const gain = context.createGain()
+  const master = context.createGain()
   const first = context.createOscillator()
   const second = context.createOscillator()
   const now = context.currentTime
 
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(0.06, now + 0.025)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85)
+  master.gain.setValueAtTime(0.0001, now)
+  master.gain.exponentialRampToValueAtTime(0.11, now + 0.025)
+  master.gain.exponentialRampToValueAtTime(0.0001, now + 0.92)
 
   first.type = 'sine'
   second.type = 'sine'
   first.frequency.setValueAtTime(659.25, now)
   second.frequency.setValueAtTime(987.77, now)
 
-  first.connect(gain)
-  second.connect(gain)
-  gain.connect(context.destination)
+  first.connect(master)
+  second.connect(master)
+  master.connect(context.destination)
 
   first.start(now)
-  second.start(now + 0.11)
-  first.stop(now + 0.58)
-  second.stop(now + 0.85)
+  second.start(now + 0.12)
+  first.stop(now + 0.62)
+  second.stop(now + 0.92)
 }
 
-const playFallbackCue = async () => {
+const playFallbackCue = async (): Promise<boolean> => {
+  prepareFallback()
+  const fallback = cueFallback
+  if (!fallback) return false
+
   try {
-    if (!cueFallback) {
-      cueFallback = new Audio(FALLBACK_CHIME_URL)
-      cueFallback.preload = 'auto'
-    }
-    cueFallback.pause()
-    cueFallback.currentTime = 0
-    cueFallback.volume = 0.24
-    await cueFallback.play()
+    fallback.pause()
+    fallback.currentTime = 0
+    fallback.volume = 0.34
+    await fallback.play()
+    return true
   } catch {
-    // Never interrupt the story if the browser refuses the cue.
+    return false
   }
 }
 
-const playCue = async () => {
+const playCue = async (): Promise<boolean> => {
+  if (cueAttemptInFlight) return false
+  cueAttemptInFlight = true
+
   try {
     const context = cueContext
     if (context) {
       if (context.state === 'suspended') {
-        try { await context.resume() } catch { /* use media fallback below */ }
+        try { await context.resume() } catch { /* fall through */ }
       }
 
       if (context.state === 'running') {
         soundWebAudioCue(context)
-        return
+        return true
       }
     }
-  } catch {
-    // Use the fallback below.
-  }
 
-  await playFallbackCue()
+    return await playFallbackCue()
+  } catch {
+    return false
+  } finally {
+    cueAttemptInFlight = false
+  }
 }
 
 const onTimeUpdate = () => {
@@ -147,9 +142,12 @@ const onTimeUpdate = () => {
   const duration = Number.isFinite(audio.duration) ? audio.duration : 0
   const remaining = duration - (audio.currentTime || 0)
 
-  if (duration > 75 && remaining <= 60 && remaining > 15) {
-    cuePlayedForLoad = true
-    void playCue()
+  // Keep trying throughout the first seconds of the final-minute window.
+  // We only mark the cue as played after a sound path actually starts.
+  if (duration > 75 && remaining <= 60 && remaining > 54) {
+    void playCue().then((started) => {
+      if (started) cuePlayedForLoad = true
+    })
   }
 }
 
@@ -162,9 +160,11 @@ const attachAudio = (audio: HTMLAudioElement) => {
 
   attachedAudio = audio
   cuePlayedForLoad = false
+  cueAttemptInFlight = false
   audio.addEventListener('timeupdate', onTimeUpdate)
   audio.addEventListener('loadstart', () => {
     cuePlayedForLoad = false
+    cueAttemptInFlight = false
   })
 }
 
@@ -173,8 +173,6 @@ const revealImageWhenReady = (image: HTMLImageElement) => {
     image.style.opacity = '1'
   }
 
-  // Hide the element while a new source is resolving so the browser cannot
-  // briefly paint a previously decoded image in the same DOM node.
   if (!image.complete || image.naturalWidth === 0) {
     image.style.opacity = '0'
     image.style.transition = image.style.transition || 'opacity 140ms ease'
@@ -196,8 +194,6 @@ const findAndAttachAudio = () => {
   if (audio instanceof HTMLAudioElement) attachAudio(audio)
 }
 
-// Unlock sound while a real user gesture is in progress. Keeping this same
-// context alive avoids creating a brand-new blocked context at the 60s mark.
 const gestureUnlock = () => { void unlockCue() }
 document.addEventListener('pointerdown', gestureUnlock, { passive: true })
 document.addEventListener('touchstart', gestureUnlock, { passive: true })
@@ -230,5 +226,6 @@ observer.observe(document.documentElement, {
   attributeFilter: ['src'],
 })
 
+prepareFallback()
 findAndAttachAudio()
 processImages()
